@@ -78,16 +78,6 @@ Leave the output folder blank to save next to the source files.
 
 Click **▶ RUN BATCH**. Each file's status is tracked live in the Queue Status panel.
 
-```
-┌──────────────────────────────────────┐
-│  ✓ clip_01.mp4                       │  ← done    (green)
-│  ▶ clip_02.mp4                       │  ← running (yellow)
-│  ⏸ clip_03.mp4                      │  ← pending (grey)
-└──────────────────────────────────────┘
-
-  ████████████████░░░░░░░░   2 / 3
-```
-
 Click **■ STOP** to finish the current file then halt.
 
 ---
