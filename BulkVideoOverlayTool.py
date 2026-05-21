@@ -71,33 +71,45 @@ class FFmpegGUI(tk.Tk):
 
         # ════ LEFT COLUMN ════════════════════════════════════════════════════
 
-        # column header row
-        hdr = tk.Frame(left, bg=BG)
-        hdr.pack(fill="x", pady=(0, 2))
-        hdr.columnconfigure(0, weight=1, uniform="col")
-        hdr.columnconfigure(1, weight=1, uniform="col")
-        tk.Label(hdr, text="VIDEO", font=("Consolas", 8, "bold"),
-                 bg=BG, fg=FG_DIM).grid(row=0, column=0, sticky="w")
-        tk.Label(hdr, text="OVERLAY", font=("Consolas", 8, "bold"),
-                 bg=BG, fg=FG_DIM).grid(row=0, column=1, sticky="w", padx=(8, 0))
-
         # scrollable file+overlay list
         list_frame = tk.Frame(left, bg=SURFACE, highlightthickness=1,
                               highlightbackground=BORDER)
         list_frame.pack(fill="both", expand=True)
 
-        self.list_canvas = tk.Canvas(list_frame, bg=SURFACE, bd=0,
+        # scrollbar first so list_inner excludes its width
+        sb = ttk.Scrollbar(list_frame, orient="vertical")
+        sb.pack(side="right", fill="y")
+
+        list_inner = tk.Frame(list_frame, bg=SURFACE)
+        list_inner.pack(side="left", fill="both", expand=True)
+
+        # column header row — inside list_inner so it matches the canvas width exactly
+        hdr = tk.Frame(list_inner, bg=BG)
+        hdr.pack(fill="x")
+        hdr.columnconfigure(0, weight=1, uniform="col")
+        hdr.columnconfigure(1, weight=1, uniform="col")
+        tk.Label(hdr, text="VIDEO", font=("Consolas", 8, "bold"),
+                 bg=BG, fg=FG_DIM).grid(row=0, column=0, sticky="w", padx=(6, 4), pady=2)
+        tk.Label(hdr, text="OVERLAY", font=("Consolas", 8, "bold"),
+                 bg=BG, fg=FG_DIM).grid(row=0, column=1, sticky="ew", padx=(0, 4), pady=2)
+        tk.Button(hdr, text="Browse…", font=FONT_XS, bg=BG, fg=BG,
+                  activebackground=BG, relief="flat", bd=0, padx=8, pady=3
+                  ).grid(row=0, column=2, padx=(0, 4), pady=3)
+        tk.Button(hdr, text="✕", font=FONT_XS, bg=BG, fg=BG,
+                  activebackground=BG, relief="flat", bd=0, padx=6, pady=3
+                  ).grid(row=0, column=3, padx=(0, 4), pady=3)
+        tk.Frame(list_inner, bg=BORDER, height=1).pack(fill="x")
+
+        self.list_canvas = tk.Canvas(list_inner, bg=SURFACE, bd=0,
                                      highlightthickness=0)
-        sb = ttk.Scrollbar(list_frame, orient="vertical",
-                           command=self.list_canvas.yview)
         self.rows_frame = tk.Frame(self.list_canvas, bg=SURFACE)
         self.rows_window = self.list_canvas.create_window(
             (0, 0), window=self.rows_frame, anchor="nw")
         self.rows_frame.bind("<Configure>", self._on_rows_configure)
         self.list_canvas.bind("<Configure>", self._on_canvas_configure)
         self.list_canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.list_canvas.pack(side="left", fill="both", expand=True)
+        sb.configure(command=self.list_canvas.yview)
+        self.list_canvas.pack(fill="both", expand=True)
         self.list_canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.rows_frame.bind("<MouseWheel>", self._on_mousewheel)
 
