@@ -42,15 +42,7 @@ When adding a folder, any video that has a file with the **same name** is automa
 
 Each row shows the video, its paired overlay, and a **Browse…** button to swap it.
 
-```
-┌──────────────────────┬─────────────────────┬──────────┬──────┐
-│ VIDEO                │ OVERLAY             │          │     │
-├──────────────────────┼─────────────────────┼──────────┼──────┤
-│ clip_01.mp4          │ logo.png            │ [Browse] │ [✕] │
-│ clip_02.mp4          │ — no overlay —      │ [Browse] │ [✕] │
-│ clip_03.mp4          │ intro.mov           │ [Browse] │ [✕] │
-└──────────────────────┴─────────────────────┴──────────┴──────┘
-```
+![Assign overlays](screenshots/assignoverlay.png)
 
 Set the **Default Overlay (fallback)** in the right column — any video without its own overlay uses it.
 
@@ -61,14 +53,7 @@ Video overlays loop automatically — only complete cycles play, so the overlay 
 
 ## Step 3 — Set Parameters
 
-```
-┌──────────────────────────────────────────────┐
-│ ☑ Scale   W [ 1440 ]   H [   -1 ]           │
-├──────────────────────────────────────────────┤
-│ ☑ Crop    W [ 1080 ]   H [ 1440 ]           │
-│           X [  180 ]   Y [    0 ]            │
-└──────────────────────────────────────────────┘
-```
+![Set parameters](screenshots/setparams.png)
 
 | Setting | Description |
 |---------|-------------|
@@ -82,17 +67,7 @@ Uncheck **Scale** or **Crop** to skip that step entirely.
 
 ## Step 4 — Output Folder & Suffix
 
-```
-┌────────────────────────────────────────────────┐
-│  OUTPUT FOLDER                                 │
-│  ┌──────────────────────────────┐  [Browse…]   │
-│  │ C:\Users\me\output\          │              │
-│  └──────────────────────────────┘              │
-├────────────────────────────────────────────────┤
-│  Output suffix  [ _out ]                       │
-│  (appended before .mp4)                        │
-└────────────────────────────────────────────────┘
-```
+![Output folder and suffix](screenshots/outputfolderandsuffix.png)
 
 Each file is saved as `<original_name><suffix>.mp4`.  
 Leave the output folder blank to save next to the source files.
@@ -133,7 +108,7 @@ Click **🎬 Preview…** to open a live scrubber with all filters applied.
 │  ───────────────────●────────────────────────────    │
 │  00:00:00.00                           00:00:30.00   │
 ├──────────────────────────────────────────────────────┤
-│  [📷 Export Screenshot]  [Use timestamp]  [Close]   │
+│  [📷 Export Screenshot]  [Use timestamp]  [Close]    │
 └──────────────────────────────────────────────────────┘
 ```
 
