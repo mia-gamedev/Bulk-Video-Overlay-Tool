@@ -12,7 +12,6 @@ pip install tkinter   # usually bundled with Python
 
 ## Overview
 
-```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  ▶ FFMPEG BATCH PIPELINE                              ffmpeg found ✓     │
 ├──────────────────────────────────────────┬───────────────────────────────┤
@@ -44,7 +43,7 @@ pip install tkinter   # usually bundled with Python
 │  ████████████░░░░░░░░  1 / 3                                             │
 │  [▶ RUN BATCH ───────────────────────────────────────]   [■ STOP]        │
 └──────────────────────────────────────────────────────────────────────────┘
-```
+
 
 ---
 
@@ -74,7 +73,7 @@ When adding a folder, any video that has a file with the **same name** is automa
 
 Each row shows the video, its paired overlay, and a **Browse…** button to swap it.
 
-```
+
 ┌──────────────────────┬─────────────────────┬──────────┬──────┐
 │ VIDEO                │ OVERLAY             │          │              │
 ├──────────────────────┼─────────────────────┼──────────┼──────┤
@@ -82,7 +81,7 @@ Each row shows the video, its paired overlay, and a **Browse…** button to swap
 │ clip_02.mp4          │ — no overlay —      │ [Browse] │ [✕]       │
 │ clip_03.mp4          │ intro.mov           │ [Browse] │ [✕]       │
 └──────────────────────┴─────────────────────┴──────────┴──────┘
-```
+
 
 Set the **Default Overlay (fallback)** in the right column — any video without its own overlay uses it.
 
@@ -93,14 +92,14 @@ Video overlays loop automatically — only complete cycles play, so the overlay 
 
 ## Step 3 — Set Parameters
 
-```
+
 ┌──────────────────────────────────────────────┐
 │ ☑ Scale   W [ 1440 ]   H [   -1 ]                │
 ├──────────────────────────────────────────────┤
 │ ☑ Crop    W [ 1080 ]   H [ 1440 ]                │
 │           X [  180 ]   Y [    0 ]            │
 └──────────────────────────────────────────────┘
-```
+
 
 | Setting | Description |
 |---------|-------------|
@@ -114,7 +113,7 @@ Uncheck **Scale** or **Crop** to skip that step entirely.
 
 ## Step 4 — Output Folder & Suffix
 
-```
+
 ┌────────────────────────────────────────────────┐
 │  OUTPUT FOLDER                                 │
 │  ┌──────────────────────────────┐  [Browse…]   │
@@ -124,7 +123,6 @@ Uncheck **Scale** or **Crop** to skip that step entirely.
 │  Output suffix  [ _out ]                       │
 │  (appended before .mp4)                        │
 └────────────────────────────────────────────────┘
-```
 
 Each file is saved as `<original_name><suffix>.mp4`.  
 Leave the output folder blank to save next to the source files.
@@ -135,7 +133,7 @@ Leave the output folder blank to save next to the source files.
 
 Click **▶ RUN BATCH**. Each file's status is tracked live in the Queue Status panel.
 
-```
+
 ┌──────────────────────────────────────┐
 │  ✓ clip_01.mp4                       │  ← done    (green)
 │  ▶ clip_02.mp4                       │  ← running (yellow)
@@ -143,7 +141,7 @@ Click **▶ RUN BATCH**. Each file's status is tracked live in the Queue Status 
 └──────────────────────────────────────┘
 
   ████████████████░░░░░░░░   2 / 3
-```
+
 
 Click **■ STOP** to finish the current file then halt.
 
@@ -154,7 +152,7 @@ Click **■ STOP** to finish the current file then halt.
 ### Preview window
 Click **🎬 Preview…** to open a live scrubber with all filters applied.
 
-```
+
 ┌──────────────────────────────────────────────────────┐
 │  ┌────────────────────────────────────────────────┐  │
 │  │                                                │  │
@@ -167,7 +165,7 @@ Click **🎬 Preview…** to open a live scrubber with all filters applied.
 ├──────────────────────────────────────────────────────┤
 │  [📷 Export Screenshot]  [Use timestamp]  [Close]         │
 └──────────────────────────────────────────────────────┘
-```
+
 
 Drag the slider to any frame. **Export Screenshot** saves that frame as a PNG. **Use timestamp** copies the time back to the Screenshot field.
 
@@ -180,7 +178,7 @@ Pick a video in the **Screenshot** row, enter a timestamp, and click **📷 Scre
 
 Click **▶ ADVANCED OPTIONS** to expand the encoding panel.
 
-```
+
 ┌───────────────────────────────────────────────────┐
 │  ▼ ADVANCED OPTIONS                               │
 ├───────────────────────────────────────────────────┤
@@ -192,7 +190,7 @@ Click **▶ ADVANCED OPTIONS** to expand the encoding panel.
 ├───────────────────────────────────────────────────┤
 │  Trim   [ 00:00:05 ]   →   [ 00:01:30 ]           │
 └───────────────────────────────────────────────────┘
-```
+
 
 | Option | Description |
 |--------|-------------|
@@ -209,7 +207,7 @@ Click **▶ ADVANCED OPTIONS** to expand the encoding panel.
 
 Shows the exact ffmpeg command for the first queued video. Updates live as you change any setting.
 
-```
+
 ┌────────────────────────────────────────────────────────────┐
 │  ffmpeg -y -i clip_01.mp4 -i logo.png                      │
 │  -filter_complex                                           │
@@ -220,7 +218,7 @@ Shows the exact ffmpeg command for the first queued video. Updates live as you c
 │  -map [out] -map 0:a? -c:a copy                            │
 │  -c:v libx264 -crf 23 output/clip_01_out.mp4               │
 └────────────────────────────────────────────────────────────┘
-```
+
 
 ---
 
