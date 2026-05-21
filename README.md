@@ -12,7 +12,7 @@ pip install tkinter   # usually bundled with Python
 
 ## Overview
 
-![Alt text](screenshot/main.png "Optional Title")
+![Main screenshot](screenshots/main.png)
 
 ---
 
