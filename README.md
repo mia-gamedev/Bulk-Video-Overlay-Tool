@@ -18,11 +18,11 @@ pip install tkinter   # usually bundled with Python
 ├──────────────────────────────────────────┬───────────────────────────────┤
 │  VIDEO                OVERLAY            │  DEFAULT OVERLAY (fallback)   │
 │ ┌─────────────────────────────────────┐  │  ┌─────────────────┐ [Browse] │
-│ │ clip_01.mp4  logo.png   [Browse][✕]     │   │  └─────────────────┘          │
-│ │ clip_02.mp4  — no overlay — [Br][✕]     │   ├───────────────────────────────┤
-│ │ clip_03.mp4  intro.mov  [Browse][✕]     │   │  PARAMETERS                           │
-│ └─────────────────────────────────────┘  │  ☑ Scale  W [1440]  H [  -1]      │
-│  [＋ Add files] [＋ Add folder] [Clear]       │  ☑ Crop   W [1080]  H [1440]      │
+│ │ clip_01.mp4  logo.png   [Browse][✕]│  │  └─────────────────┘          │
+│ │ clip_02.mp4  — no overlay — [Br][✕]│  ├───────────────────────────────┤
+│ │ clip_03.mp4  intro.mov  [Browse][✕]│  │  PARAMETERS                  │
+│ └─────────────────────────────────────┘  │  ☑ Scale  W [1440]  H [  -1] │
+│  [＋ Add files] [＋ Add folder] [Clear]  │  ☑ Crop   W [1080]  H [1440] │
 │  3 files queued                          │             X [ 180]  Y [   0]│
 ├──────────────────────────────────────────┤                               │
 │  OUTPUT FOLDER                           ├───────────────────────────────┤
@@ -32,12 +32,12 @@ pip install tkinter   # usually bundled with Python
 ├──────────────────────────────────────────┤  ┌───────────────────────┐    │
 │  SCREENSHOT                              │  │ ffmpeg -y -i clip_01  │    │
 │  Video [clip_01.mp4 ▼]  at [00:00:05]    │  │ .mp4 -i logo.png ...  │    │
-│  [📷 Screenshot]  [🎬 Preview…]             │  └───────────────────────┘    │
+│  [📷 Screenshot]  [🎬 Preview…]         │  └───────────────────────┘    │
 │                                          ├───────────────────────────────┤
 │                                          │  QUEUE STATUS                 │
 │                                          │  ✓ clip_01.mp4                │
 │                                          │  ▶ clip_02.mp4                │
-│                                          │  ⏸ clip_03.mp4                  │
+│                                          │  ⏸ clip_03.mp4               │
 ├──────────────────────────────────────────┴───────────────────────────────┤
 │  LOG                                                                     │
 │  [1/3] clip_01.mp4  ✓ Saved → output/clip_01_out.mp4                     │
@@ -76,11 +76,11 @@ Each row shows the video, its paired overlay, and a **Browse…** button to swap
 
 ```
 ┌──────────────────────┬─────────────────────┬──────────┬──────┐
-│ VIDEO                │ OVERLAY             │          │              │
+│ VIDEO                │ OVERLAY             │          │     │
 ├──────────────────────┼─────────────────────┼──────────┼──────┤
-│ clip_01.mp4          │ logo.png            │ [Browse] │ [✕]       │
-│ clip_02.mp4          │ — no overlay —      │ [Browse] │ [✕]       │
-│ clip_03.mp4          │ intro.mov           │ [Browse] │ [✕]       │
+│ clip_01.mp4          │ logo.png            │ [Browse] │ [✕] │
+│ clip_02.mp4          │ — no overlay —      │ [Browse] │ [✕] │
+│ clip_03.mp4          │ intro.mov           │ [Browse] │ [✕] │
 └──────────────────────┴─────────────────────┴──────────┴──────┘
 ```
 
@@ -95,9 +95,9 @@ Video overlays loop automatically — only complete cycles play, so the overlay 
 
 ```
 ┌──────────────────────────────────────────────┐
-│ ☑ Scale   W [ 1440 ]   H [   -1 ]                │
+│ ☑ Scale   W [ 1440 ]   H [   -1 ]           │
 ├──────────────────────────────────────────────┤
-│ ☑ Crop    W [ 1080 ]   H [ 1440 ]                │
+│ ☑ Crop    W [ 1080 ]   H [ 1440 ]           │
 │           X [  180 ]   Y [    0 ]            │
 └──────────────────────────────────────────────┘
 ```
@@ -139,7 +139,7 @@ Click **▶ RUN BATCH**. Each file's status is tracked live in the Queue Status 
 ┌──────────────────────────────────────┐
 │  ✓ clip_01.mp4                       │  ← done    (green)
 │  ▶ clip_02.mp4                       │  ← running (yellow)
-│  ⏸ clip_03.mp4                         │  ← pending (grey)
+│  ⏸ clip_03.mp4                      │  ← pending (grey)
 └──────────────────────────────────────┘
 
   ████████████████░░░░░░░░   2 / 3
@@ -165,7 +165,7 @@ Click **🎬 Preview…** to open a live scrubber with all filters applied.
 │  ───────────────────●────────────────────────────    │
 │  00:00:00.00                           00:00:30.00   │
 ├──────────────────────────────────────────────────────┤
-│  [📷 Export Screenshot]  [Use timestamp]  [Close]         │
+│  [📷 Export Screenshot]  [Use timestamp]  [Close]   │
 └──────────────────────────────────────────────────────┘
 ```
 
