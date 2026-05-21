@@ -51,7 +51,7 @@ class FFmpegGUI(tk.Tk):
         # ── header ──
         header = tk.Frame(self, bg=BG)
         header.pack(fill="x", padx=24, pady=(20, 4))
-        tk.Label(header, text="▶  FFMPEG BATCH PIPELINE", font=FONT_LG,
+        tk.Label(header, text="▶  BULK VIDEO OVERLAY TOOL for FFMPEG", font=FONT_LG,
                  bg=BG, fg=ACCENT).pack(side="left")
         sc = GREEN if self.ffmpeg_ok else RED
         st = "ffmpeg found ✓" if self.ffmpeg_ok else "ffmpeg NOT found ✗"
@@ -945,17 +945,6 @@ class FFmpegGUI(tk.Tk):
         if not self.input_files:
             messagebox.showwarning("No files", "Add at least one input video.")
             return
-        default_ov = self.overlay_var.get()
-        missing_ov = [Path(f).name for f in self.input_files
-                      if f not in self.overlays and not default_ov]
-        if missing_ov:
-            messagebox.showwarning(
-                "No overlay",
-                "Set a default overlay, or assign overlays to every video.\n\n"
-                "Missing overlay for:\n" + "\n".join(missing_ov)
-            )
-            return
-
         self.stop_flag = False
         self.running   = True
         self.run_btn.configure(state="disabled", text="⏳  PROCESSING…")
@@ -986,9 +975,23 @@ class FFmpegGUI(tk.Tk):
 
             out     = self._make_output_path(inp)
             name    = Path(inp).name
-            overlay = self.overlays.get(inp) or self.overlay_var.get() or "overlay.png"
-            n_loops = self._calc_overlay_loops(inp, overlay)
-            cmd     = self._build_command(inp, out, overlay, n_loops=n_loops)
+            overlay = self.overlays.get(inp) or self.overlay_var.get()
+            if overlay:
+                n_loops = self._calc_overlay_loops(inp, overlay)
+                cmd = self._build_command(inp, out, overlay, n_loops=n_loops)
+            else:
+                fc, map_out = self._build_filter_complex(with_overlay=False)
+                pre  = self._trim_pre_args()
+                post = self._trim_post_args()
+                if fc:
+                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                           "-filter_complex", fc, "-map", map_out,
+                           *self._audio_args(), *self._fps_args(),
+                           *self._codec_args(), *post, out]
+                else:
+                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                           *self._audio_args(), *self._fps_args(),
+                           *self._codec_args(), *post, out]
 
             self._status_update(idx, f"▶  {name}\n", "active")
             self._log(f"\n[{idx+1}/{total}] {name}\n$ {' '.join(cmd)}\n")
