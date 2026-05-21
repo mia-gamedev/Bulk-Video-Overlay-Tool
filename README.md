@@ -87,20 +87,7 @@ Click **■ STOP** to finish the current file then halt.
 ### Preview window
 Click **🎬 Preview…** to open a live scrubber with all filters applied.
 
-```
-┌──────────────────────────────────────────────────────┐
-│  ┌────────────────────────────────────────────────┐  │
-│  │                                                │  │
-│  │          scaled · cropped · overlay            │  │
-│  │                                                │  │
-│  └────────────────────────────────────────────────┘  │
-│  00:00:08.30                                         │
-│  ───────────────────●────────────────────────────    │
-│  00:00:00.00                           00:00:30.00   │
-├──────────────────────────────────────────────────────┤
-│  [📷 Export Screenshot]  [Use timestamp]  [Close]    │
-└──────────────────────────────────────────────────────┘
-```
+![Screenshot and preview](screenshots/screenshotandpreview.png)
 
 Drag the slider to any frame. **Export Screenshot** saves that frame as a PNG. **Use timestamp** copies the time back to the Screenshot field.
 
