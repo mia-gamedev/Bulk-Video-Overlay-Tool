@@ -74,8 +74,8 @@ class FFmpegGUI(tk.Tk):
         # column header row
         hdr = tk.Frame(left, bg=BG)
         hdr.pack(fill="x", pady=(0, 2))
-        hdr.columnconfigure(0, weight=2)
-        hdr.columnconfigure(1, weight=2)
+        hdr.columnconfigure(0, weight=1, uniform="col")
+        hdr.columnconfigure(1, weight=1, uniform="col")
         tk.Label(hdr, text="VIDEO", font=("Consolas", 8, "bold"),
                  bg=BG, fg=FG_DIM).grid(row=0, column=0, sticky="w")
         tk.Label(hdr, text="OVERLAY", font=("Consolas", 8, "bold"),
@@ -527,27 +527,31 @@ class FFmpegGUI(tk.Tk):
             self.scr_combo.current(0)
         self._update_cmd_preview()
 
+    @staticmethod
+    def _trunc(name, maxlen=70):
+        return name if len(name) <= maxlen else name[:maxlen - 1] + "…"
+
     def _build_row(self, idx, video_path):
         row_bg = SURFACE if idx % 2 == 0 else SURFACE2
         row = tk.Frame(self.rows_frame, bg=row_bg)
         row.pack(fill="x")
-        row.columnconfigure(0, weight=2)
-        row.columnconfigure(1, weight=2)
+        row.columnconfigure(0, weight=1, uniform="col")
+        row.columnconfigure(1, weight=1, uniform="col")
         row.bind("<MouseWheel>", self._on_mousewheel)
 
         # video filename
-        vname = Path(video_path).name
+        vname = self._trunc(Path(video_path).name)
         vlbl = tk.Label(row, text=vname, font=FONT_XS, bg=row_bg, fg=FG,
                         anchor="w")
         vlbl.grid(row=0, column=0, sticky="ew", padx=(6, 4), pady=4)
         vlbl.bind("<MouseWheel>", self._on_mousewheel)
 
-        # overlay filename
+        # overlay filename — centered and truncated
         ov = self.overlays.get(video_path, "")
-        ov_text  = Path(ov).name if ov else "— no overlay —"
+        ov_text  = self._trunc(Path(ov).name) if ov else "— no overlay —"
         ov_color = FG if ov else FG_DIM
         ovlbl = tk.Label(row, text=ov_text, font=FONT_XS, bg=row_bg, fg=ov_color,
-                         anchor="w")
+                         anchor="center")
         ovlbl.grid(row=0, column=1, sticky="ew", padx=(0, 4), pady=4)
         ovlbl.bind("<MouseWheel>", self._on_mousewheel)
 
