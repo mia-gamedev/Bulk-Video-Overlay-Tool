@@ -19,13 +19,18 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
 import brief_parser  # noqa: E402
+import dialogs  # noqa: E402
+import export_ai  # noqa: E402
 import layout as L  # noqa: E402
 import media as M  # noqa: E402
+import preset_import  # noqa: E402
 import project as P  # noqa: E402
+import settings  # noqa: E402
 import render as R  # noqa: E402
 from ffmpeg_utils import find_ffmpeg  # noqa: E402
 
 PORT = int(os.environ.get("CAROUSEL_PORT", 5173))
+preset_import.load_user_presets()
 app = Flask(__name__, static_folder=str(HERE / "static"), static_url_path="/static")
 app.json.ensure_ascii = False
 
@@ -58,19 +63,107 @@ def files(name, sub):
 @app.get("/api/status")
 def status():
     ffmpeg, ffprobe = find_ffmpeg()
-    try:
-        import anthropic  # noqa: F401
-        claude = True
-    except ImportError:
-        claude = False
     fonts = {}
     for k in ("neutra", "trajan"):
         try:
             fonts[k] = L.font_path(k)
         except FileNotFoundError as e:
             fonts[k] = None
-    return jsonify({"ffmpeg": ffmpeg, "claude": claude, "fonts": fonts,
-                    "presets": {k: v["label"] for k, v in R.PRESETS.items()}})
+    return jsonify({"ffmpeg": ffmpeg, "ai": settings.all_status(), "fonts": fonts,
+                    "presets": preset_list()})
+
+
+# ── app settings (⚙ menu): AI API keys ──────────────────────────────────────
+@app.get("/api/settings")
+def get_settings():
+    return jsonify({"ai": settings.all_status()})
+
+
+def _check_key(provider, key):
+    """None if fine, ("error", msg) to refuse, ("warning", msg) to save anyway."""
+    label = settings.PROVIDERS[provider]["label"]
+    try:
+        import anthropic
+        import ai_parser
+    except ImportError:
+        return "error", "The anthropic package is missing – run: pip install anthropic"
+    try:
+        ai_parser.check_key(provider, key)
+    except anthropic.AuthenticationError:
+        return "error", f"The {label} rejected this key – check that it was copied completely"
+    except anthropic.PermissionDeniedError:
+        return "error", f"This key has no access to the {label}"
+    except (anthropic.APIConnectionError, anthropic.APITimeoutError):
+        return "warning", f"Saved, but couldn't reach the {label} to check it (offline?)"
+    except anthropic.APIStatusError as e:
+        return "warning", f"Saved, but the check returned {e.status_code}"
+    return None
+
+
+@app.post("/api/settings/provider")
+def set_ai_provider():
+    """Toggle which API "Parse with AI" talks to."""
+    name = (request.get_json(silent=True) or {}).get("provider")
+    if name not in settings.PROVIDERS:
+        return err("Unknown API")
+    settings.set_provider(name)
+    return jsonify({"ai": settings.all_status()})
+
+
+@app.post("/api/settings/key")
+def set_api_key():
+    """Check a new key with its provider, then save it locally. Empty key = remove."""
+    data = request.get_json(silent=True) or {}
+    provider = data.get("provider")
+    if provider not in settings.PROVIDERS:
+        return err("Unknown provider")
+    key = (data.get("key") or "").strip()
+    warning = None
+    if key:
+        result = _check_key(provider, key)
+        if result and result[0] == "error":
+            return err(result[1])
+        warning = result[1] if result else None
+    settings.set_key(provider, key)
+    return jsonify({"ai": settings.all_status(), "warning": warning})
+
+
+def preset_list():
+    return {k: {"label": v["label"], "template": v.get("type") == "template",
+                "slots": [{"id": sid, "role": v["slots"][sid]["role"], "sample": v["slots"][sid]["sample"]}
+                          for sid in v.get("order", [])]}
+            for k, v in R.PRESETS.items()}
+
+
+@app.post("/api/presets/import")
+def import_preset():
+    """Upload a title-slide .ai/.pdf and turn one artboard into a preset."""
+    f = request.files.get("file")
+    name = (request.form.get("name") or "").strip()
+    if not f or not name:
+        return err("Choose a file and give the preset a name")
+    tmp = preset_import.USER_DIR / "_upload"
+    tmp.parent.mkdir(exist_ok=True)
+    f.save(tmp)
+    try:
+        pages = preset_import.page_count(tmp)
+        page = request.form.get("page", type=int)
+        if page is None and pages > 1:
+            return jsonify({"pages": pages})          # the page asks which artboard to use
+        key, preset, warnings = preset_import.import_preset(tmp, name, page or 1)
+    except ValueError as e:
+        return err(str(e))
+    finally:
+        tmp.unlink(missing_ok=True)
+    return jsonify({"key": key, "label": preset["label"], "warnings": warnings,
+                    "slots": {sid: {k: sp[k] for k in ("role", "font", "size", "align", "sample")}
+                              for sid, sp in preset["slots"].items()},
+                    "graphics": bool(preset.get("graphics")), "presets": preset_list()})
+
+
+@app.get("/api/presets/<key>/thumb.jpg")
+def preset_thumb(key):
+    return send_from_directory(preset_import.USER_DIR, f"{key}_thumb.jpg", max_age=0)
 
 
 # ── projects ────────────────────────────────────────────────────────────────
@@ -84,14 +177,18 @@ def create_project():
     data = request.get_json(force=True)
     brief = data.get("brief", "")
     try:
-        if data.get("mode") == "claude":
-            import claude_parser
-            parsed = claude_parser.parse_brief(brief)
+        if data.get("mode") == "ai":
+            import ai_parser
+            parsed = ai_parser.parse_brief(brief)
         else:
             parsed = brief_parser.parse_brief(brief)
     except Exception as e:
         traceback.print_exc()
-        return err(f"Parsing failed: {e}")
+        msg = str(e)
+        if type(e).__name__ == "AuthenticationError" or "api_key" in msg.lower():
+            label = settings.PROVIDERS[settings.provider()]["label"]
+            msg = f"no valid {label} key – add one in the ⚙ menu"
+        return err(f"Parsing failed: {msg}")
     if not parsed:
         return err("No slides found. Each slide needs a line like 'Slide 1:'.")
     proj = P.create(data.get("name") or "", brief, parsed)
@@ -129,6 +226,10 @@ def patch_slide(name, i):
         if data.get("preset") and data["preset"] != s["preset"]:
             s["body_size"] = R.PRESETS[data["preset"]].get("body_size")
             s["lines_auto"] = True
+            s["preset"] = data["preset"]
+            P.fill_slots(s)
+        if "slots" in data:
+            s.setdefault("slots", {}).update(data.pop("slots"))
         if "zone" in data:
             s["zone_auto"] = False
             s["offsets"].pop("body", None)
@@ -150,6 +251,10 @@ def patch_slide(name, i):
             replace = True
         if "shade" in data:
             s["shade"] = {**R.shade_settings(s), **data.pop("shade")}
+        if "logo_shade" in data:
+            ls = {**R.logo_shade_settings(s), **data.pop("logo_shade")}
+            ls.pop("shape", None)
+            s["logo_shade"] = ls
         for k in ("preset", "headline", "subline", "kicker", "body", "lines_auto", "n_lines",
                   "body_size", "zone", "crop", "media_sel", "media_type"):
             if k in data:
@@ -235,6 +340,8 @@ def assign_file(s, mi, path, mdir):
         s["media"][mi].update(entry)
     s["media_sel"] = mi
     s["media_type"] = s["media_type"] or kind
+    if kind == "video":
+        M.ensure_preview(path, mdir)
 
 
 # ── Frame.io: open links in the browser, pick downloads up automatically ────
@@ -267,27 +374,37 @@ def _watch_downloads():
                         assign_file(proj["slides"][si], mi, dest, mdir)
                         if proj["slides"][si]["zone_auto"]:
                             P.autoplace(proj["slides"][si], mdir)
-                        print(f"[downloads] {src.name} → slide {proj['slides'][si]['index']}")
                     P.save(proj)
+                for si, _, src in hits:
+                    print(f"[downloads] {src.name} -> slide {proj['slides'][si]['index']}", flush=True)
             except Exception:
                 traceback.print_exc()
 
 
 @app.post("/api/p/<name>/open_links")
 def open_links(name):
-    """Open every share link whose file is still missing in the default browser."""
+    """Start watching Downloads for this project. The page opens the share links itself;
+    any it couldn't (popup blocker) are sent here and opened in the default browser."""
     proj = P.load(name)
-    urls = list(dict.fromkeys(m["url"] for _, _, m in _waiting(proj) if m.get("url")))
-    for u in urls:
-        webbrowser.open_new_tab(u)
+    waiting = list(dict.fromkeys(m["url"] for _, _, m in _waiting(proj) if m.get("url")))
+    blocked = (request.get_json(silent=True) or {}).get("open", [])
+    for u in blocked:
+        if u in waiting:                       # only links that belong to this project
+            webbrowser.open_new_tab(u)
     _active.add(name)
-    return jsonify({"opened": len(urls), "downloads": str(M.downloads_dir())})
+    return jsonify({"waiting": len(waiting), "downloads": str(M.downloads_dir())})
 
 
 @app.get("/api/p/<name>/media_state")
 def media_state(name):
     proj = P.load(name)
-    return jsonify({"state": [[m["status"], m.get("file")] for s in proj["slides"] for m in s["media"]],
+    mdir = P.media_dir(name)
+
+    def ready(m):
+        return bool(m.get("file") and m.get("kind") == "video"
+                    and M.preview_path(m["file"], mdir).with_suffix(".json").exists())
+    return jsonify({"state": [[m["status"], m.get("file"), ready(m)]
+                              for s in proj["slides"] for m in s["media"]],
                     "waiting": len(_waiting(proj))})
 
 
@@ -313,7 +430,7 @@ def view_of(name, proj, i):
     els = []
     for e in R.elements(s):
         base = {k: v for k, v in s.items()
-                if k not in ("media", "legibility", "media_sel", "crop", "shade")}
+                if k not in ("media", "legibility", "media_sel", "crop", "shade", "logo_shade")}
         key = _h(base, e["id"], e["x"], e["y"])
         fn = f"s{i}_{e['id']}_{key}.png"
         if not (cache / fn).exists():
@@ -327,8 +444,15 @@ def view_of(name, proj, i):
                 f.unlink()
             except OSError:
                 pass
+    video = None
+    m = R.selected_media(s)
+    if m and m.get("kind") == "video" and m.get("file"):
+        info = M.preview_info(m["file"], mdir)
+        video = ({"url": f"/files/{name}/media/{info['name']}", "w": info["w"], "h": info["h"]}
+                 if info else {"pending": True})
     s["shade"] = R.shade_settings(s)
-    return {"slide": s, "index": i, "src": src, "elements": els}
+    s["logo_shade"] = R.logo_shade_settings(s)
+    return {"slide": s, "index": i, "src": src, "video": video, "elements": els}
 
 
 @app.get("/api/p/<name>/slide/<int:i>/view")
@@ -350,20 +474,41 @@ def thumb(name, i):
 
 
 # ── export ──────────────────────────────────────────────────────────────────
+EXPORT_DEFAULTS = {"folder": None, "png": True, "jpg": True, "ai": True, "pdf": True}
+
+
+def export_options(proj):
+    return {**EXPORT_DEFAULTS, **(proj.get("export") or {})}
+
+
+def export_dir(name, proj):
+    """Images, videos and the preview PDF. The .ai files always go to the project folder."""
+    folder = export_options(proj)["folder"]
+    return Path(folder) if folder else P.project_dir(name) / "export"
+
+
 def _export(name):
     st = _exports[name]
     try:
         proj = P.load(name)
-        out = P.project_dir(name) / "export"
+        opts = export_options(proj)
+        root, out, mdir = P.project_dir(name), export_dir(name, proj), P.media_dir(name)
+        formats = [f for f in ("png", "jpg") if opts[f]]
         stills = []
         for s in proj["slides"]:
-            st["log"].append(f"Slide {s['index']}…")
-            still, written = R.export_slide(s, P.media_dir(name), out, log=st["log"].append)
+            st["log"].append(f"{R.slide_stem(s)}…")
+            still, written = R.export_slide(s, mdir, out, log=st["log"].append, formats=formats)
             stills.append(still)
             st["files"] += written
-        R.export_pdf(stills, out / "preview.pdf")
-        st["files"].append("preview.pdf")
-        st["log"].append(f"Done → {out}")
+        if opts["pdf"]:
+            R.export_pdf(stills, out / "preview.pdf")
+            st["files"].append("preview.pdf")
+        st["log"].append(f"Images / videos → {out}")
+        if opts["ai"]:
+            st["log"].append("Writing Illustrator files…")
+            st["files"] += export_ai.export_ai(proj["slides"], mdir, root, name)
+            st["log"].append(f"Illustrator files → {root}")
+        st["log"].append("Done")
     except Exception as e:
         traceback.print_exc()
         st["log"].append(f"ERROR: {e}")
@@ -387,9 +532,55 @@ def export_status(name):
     return jsonify(_exports.get(name) or {"running": False, "log": [], "files": []})
 
 
+# ── export options ──────────────────────────────────────────────────────────
+@app.get("/api/p/<name>/export_options")
+def get_export_options(name):
+    proj = P.load(name)
+    return jsonify({**export_options(proj), "resolved": str(export_dir(name, proj)),
+                    "project_dir": str(P.project_dir(name))})
+
+
+@app.post("/api/p/<name>/export_options")
+def set_export_options(name):
+    data = request.get_json(force=True)
+    with lock(name):
+        proj = P.load(name)
+        opts = export_options(proj)
+        if data.pop("pick_folder", False):
+            chosen = dialogs.pick_folder(start=export_dir(name, proj))
+            if not chosen:
+                return jsonify({**opts, "cancelled": True, "resolved": str(export_dir(name, proj)),
+                                "project_dir": str(P.project_dir(name))})
+            data["folder"] = chosen
+        opts.update({k: v for k, v in data.items() if k in EXPORT_DEFAULTS})
+        proj["export"] = opts
+        P.save(proj)
+    return jsonify({**opts, "resolved": str(export_dir(name, proj)),
+                    "project_dir": str(P.project_dir(name))})
+
+
+# ── single slide: ask where to save ─────────────────────────────────────────
+def _save_dialog(name, i, ext):
+    proj = P.load(name)
+    s = proj["slides"][i]
+    start = export_dir(name, proj)
+    start.mkdir(parents=True, exist_ok=True)
+    return s, dialogs.save_as(R.slide_stem(s) + ext, start=start,
+                              title=f"Save {R.slide_stem(s)}{ext}")
+
+
+@app.post("/api/p/<name>/slide/<int:i>/save_png")
+def save_slide_png(name, i):
+    s, path = _save_dialog(name, i, ".png")
+    if not path:
+        return jsonify({"cancelled": True})
+    R.compose(s, P.media_dir(name)).save(path)
+    return jsonify({"saved": path})
+
+
 @app.post("/api/p/<name>/open_export")
 def open_export(name):
-    out = P.project_dir(name) / "export"
+    out = export_dir(name, P.load(name))
     out.mkdir(parents=True, exist_ok=True)
     if os.name == "nt":
         os.startfile(out)  # noqa: S606
@@ -400,6 +591,12 @@ def open_export(name):
 
 
 if __name__ == "__main__":
+    # file names are often non-ASCII; never let a console encoding crash a request or thread
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     threading.Thread(target=_watch_downloads, daemon=True).start()
     if "--no-browser" not in sys.argv:
         threading.Timer(1.0, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()

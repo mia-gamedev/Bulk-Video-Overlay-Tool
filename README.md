@@ -184,7 +184,7 @@ Shows the exact ffmpeg command for the first queued video. Updates live as you c
 
 # Carousel Builder
 
-A local browser app for Instagram carousel briefs: paste the brief, get finished **1080×1440** slides — images as PNG/JPG, videos as MP4 with the text burned in, plus a preview PDF.
+A local browser app for Instagram carousel briefs: paste the brief, get finished **1080×1440** slides — images as PNG/JPG, videos as MP4 with the text burned in, a preview PDF, and editable **Illustrator (.ai)** files.
 
 **Requirements:** Python 3.x · ffmpeg (found the same way as above) · fonts **Neutraface Text Book** and **Trajan Pro 3** installed
 
@@ -220,7 +220,7 @@ TASTING
 24 MONTHS EDITION | 24.11.2026      ← sub line (after "|" = own line)
 Bild:                               ← image  (Video: for videos)
 https://www.picdrop.com/…
-oder:                               ← alternative image
+oder:                               ← alternative → extra slide "1 alt"
 https://www.picdrop.com/…
 
 Slide 2:
@@ -235,8 +235,34 @@ Verkostet gemeinsam mit …
 | **ON TOUR** | `Typo wie ON TOUR`, `Groß Typo:` | Logo on top, big left-aligned Trajan headline, Neutraface sub line |
 | **GET TO KNOW** | `Typo wie GET TO KNOW`, `Klein Typo:` | Small centred Neutraface kicker + Trajan title |
 | **Body** | every other slide | Body text only |
+| **Imported presets** | `Typo wie <NAME>` | Any title design you imported — see below |
 
-**Parse with Claude** does the same via the Claude API for messy briefs (`pip install anthropic`, set `ANTHROPIC_API_KEY`).
+### Alternatives (`oder:`)
+Every link after an `oder:` line becomes its own slide right after the main one — same text, the alternative image or video. It shows as **1 alt** in the strip and exports as `slide01_alt.png` and becomes the artboard `slide01_alt` in Illustrator (`_alt2`, `_alt3` … for more).
+
+### Import a title preset
+Click **Import title preset (.ai)…** in the header and pick a title-slide design (`.ai` saved with *Create PDF Compatible File*, or a `.pdf`). Give it a name — that name is what briefs use (`Typo wie <NAME>`). If the file has several artboards you are asked which one.
+
+The artboard is measured automatically:
+
+| Found in the design | Becomes |
+|---------------------|---------|
+| Largest text | **Headline** block (lines from the brief, shrinks to fit) |
+| Text above it | **Kicker** block (keeps the design's text unless the brief gives one) |
+| Text right below it | **Sub line** block (`|` parts go on their own line) |
+| Text far below the title | Size and position of the slide's **body text** |
+| Vector art (logo…) | Graphics layer — photos in the design are ignored |
+
+Each block keeps its font (matched to your installed fonts), size, tracking, leading and alignment, and the spacing between blocks stays the same when a headline gets more or fewer lines. Imported presets appear in the **Preset** dropdown with one text field per block; they are saved in `carousel/presets_user/` (not part of the repo).
+
+**Parse with AI** does the same with an AI model, for messy briefs. It always runs the same code (the Anthropic SDK, same instructions, same checks on the answer); under **⚙ → AI parsing** you choose which API answers:
+
+| API | Model | Key from |
+|-----|-------|----------|
+| **Anthropic API** | Claude (`claude-opus-5-5`) | console.anthropic.com → API keys |
+| **DeepSeek API** | `deepseek-chat` via DeepSeek's Anthropic-compatible endpoint (the one Claude Code uses with DeepSeek) | platform.deepseek.com → API keys |
+
+Each key is checked with its API before it is saved, stored only on this computer in `~/.carousel_builder.json` (never in the repo), and only its last 4 characters are shown afterwards. The environment variables `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` work too.
 
 ---
 
@@ -248,7 +274,7 @@ Verkostet gemeinsam mit …
 | **Frame.io** | The slide is laid out on the poster image first. Click **Get Frame.io videos** → the links open in your browser → click *Download* there. Every file landing in your **Downloads** folder with the matching Frame.io name is imported into its slide automatically. |
 | **Drag & drop** | Drop files anywhere. They are matched by Frame.io name, by `Slide N` in the file name, or to the selected slide when dropped onto the preview. |
 
-Video slides use the **first frame** of the video as the preview background.
+Video slides **play in the editor**: once a video is there, a small preview copy is made in the background (so 4K and HEVC `.mov` files play in the browser too) and the stage shows the video under the text with **▶ / ❚❚**, a scrub bar and sound on/off — **Space** plays and pauses. Until then the first frame is shown.
 
 ---
 
@@ -280,34 +306,84 @@ Everything previews in real time.
 | **Drag text** | Move any block. Snaps to the margins and the centre — hold **Alt** to move freely. |
 | **Position grid** | Jump to one of the 9 zones. **Auto-place** picks the best one again. |
 | **Lines on slide** | Edit the wrapped lines directly. **Auto-wrap** re-balances, **lines − / +** changes the line count, **size − / +** the font size. |
-| **Drag / scroll photo** | Pan and zoom the background (also via the **Crop** sliders). |
+| **Drag / scroll photo** | Pan and zoom the background — works on playing videos too (also via the **Crop** sliders). |
 
 ### Shade behind text
 A soft cushion behind the text for busy photos.
 
 | Setting | Description |
 |---------|-------------|
+| **Shape** | **Soft box** behind each text block, or **Linear gradient** across the full image width — rises from the bottom edge for low text, hangs from the top for high text, a band for text in the middle. |
 | **Strength** | Opacity of the shade. |
-| **Softness** | How smooth the gradient edge is. |
-| **Size** | How far the shade reaches beyond the text. |
+| **Softness** | How smooth the gradient edge is (for the linear gradient: the length of the fade). |
+| **Size** | How far the shade reaches beyond the text (linear: how far the solid part extends past it). |
 | **Mode** | **Multiply** (darkens like the Illustrator blend mode) or **Normal** (plain transparency). |
 | **Colour** | Shade colour — black by default. |
+
+### Gradient behind logo
+On slides with a logo (ON TOUR, or an imported preset with a graphics layer) an optional **linear gradient from the top edge**, across the full width, darkens the area behind the logo. It is solid down past the logo and then fades out.
+
+| Setting | Description |
+|---------|-------------|
+| **Strength** | Opacity of the gradient. |
+| **Length** | Length of the fade below the logo. |
+| **Reach** | How far the solid part extends below the logo. |
+| **Mode / Colour** | Multiply or Normal, and the gradient colour. |
+
+It is independent of the text shade — both can be on — and appears in the preview, the PNG/JPG, the MP4 and as its own object in the Illustrator file.
 
 ---
 
 ## Step 5 — Export
 
-Click **Export all**. Files are written to `projects/<name>/export/`:
+| Button | What it does |
+|--------|--------------|
+| **Export all** | Every slide: images and videos to the **export folder**, Illustrator files to the **project folder** |
+| **⚙** | Export options (below) |
+| **Export slide** *(pinned to the bottom of the inspector)* | Only this slide as a **PNG** — asks where to save it |
+| **Open folder** | Opens the export folder |
+
+### Export options
+The **⚙** button in the header holds the **AI API keys** (app-wide, see Step 1) and, per project:
+
+| Option | Default |
+|--------|---------|
+| **Export folder** | `projects/<name>/export/` — **Choose folder…** opens a folder dialog, **Use default** goes back |
+| **PNG** | on — also writes the transparent text layer of video slides |
+| **JPG** | on |
+| **Preview PDF** | on |
+| **Illustrator** | on — slides PDF + `.ai` build script, written to the project folder by **Export all** |
+
+Videos are always exported as MP4.
 
 ```
-export/
-  ├── slide01.png / .jpg     image slides
-  ├── slide02.mp4            video slides: cropped to 1080×1440, text burned in, audio kept
-  ├── slide02_text.png       transparent text layer (for re-editing in Premiere etc.)
-  └── preview.pdf            all slides, for client approval
+projects/<name>/
+  ├── <name>_slides.pdf                        every slide as a vector page
+  ├── Make <name>.ai (run in Illustrator).jsx  builds the native <name>.ai (see below)
+  └── export/                (or the folder you chose)
+        ├── slide01.png / .jpg     image slides
+        ├── slide01_alt.png        "oder:" alternatives
+        ├── slide02.mp4            video slides: cropped to 1080×1440, text burned in, audio kept
+        ├── slide02_text.png       transparent text layer (for Premiere etc.)
+        └── preview.pdf            all slides, for client approval
 ```
 
-**Open folder** opens the export folder.
+### Illustrator files
+A real multi-artboard `.ai` can only be written by Illustrator itself, so **Export all** writes two files into the project folder:
+
+1. **`<name>_slides.pdf`** — every slide as a vector page.
+2. **`Make <name>.ai (run in Illustrator).jsx`** — a script for Illustrator.
+
+On the computer with Illustrator, keep both files together and choose **File → Scripts → Other Script…**, then pick the `.jsx`. It creates a document with **one 1080×1440 artboard per slide** (named `slide01`, `slide01_alt`, …), pastes each slide in place and saves a **native `<name>.ai`** next to the script. The fonts used on the slides must be installed on that computer.
+
+| Object | In Illustrator |
+|--------|----------------|
+| **Text** | Live text, one object per line, in *NeutrafaceText-Book* / *TrajanPro3-Regular* with the tracking from the preset — edit it like normal type. |
+| **Photo** | Full-resolution image in a clipping mask — release the mask to re-crop. Video slides use the first frame. |
+| **Shade** | Separate object with its blend mode (Multiply / Normal) and opacity. |
+| **Logo** | Placed image. |
+
+Opening `<name>_slides.pdf` directly in Illustrator or Photoshop only imports one page — use the script for the multi-artboard file.
 
 ---
 

@@ -7,3 +7,6 @@ carousel/assets/logo.png
 carousel/assets/fonts/
 *.ai
 *.pdf
+
+# imported title presets (made from client designs)
+carousel/presets_user/

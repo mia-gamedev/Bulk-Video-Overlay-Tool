@@ -11,9 +11,56 @@
   <h1>▶ CAROUSEL BUILDER</h1>
   <select id="projectSelect" title="Open a previous project"><option value="">— open project —</option></select>
   <span id="projectName" class="dim"></span>
+  <label class="filebtn" title="Turn a title-slide design (.ai with PDF compatibility, or .pdf) into a new preset">Import title preset (.ai)…<input type="file" id="presetFile" accept=".ai,.pdf" hidden></label>
   <div class="spacer"></div>
   <span id="statusLine" class="dim"></span>
-  <button id="exportBtn" class="accent" disabled>Export all</button>
+  <button id="exportBtn" class="accent" disabled title="Images + videos to the export folder, Illustrator files to the project folder">Export all</button>
+  <div id="exportOptsWrap">
+    <button id="exportOptsBtn" class="icon" title="Settings – export folder and formats, Claude API key">⚙</button>
+    <div id="exportOpts" hidden>
+      <div id="projectExportOpts" class="col">
+      <div class="section" style="margin-top:0">Export folder <span class="dim">(images, videos, PDF)</span></div>
+      <div id="exportFolder" class="path"></div>
+      <div class="row">
+        <button id="pickFolderBtn">Choose folder…</button>
+        <button id="defaultFolderBtn" title="projects/&lt;name&gt;/export">Use default</button>
+      </div>
+      <div class="section">Formats</div>
+      <label class="check"><input type="checkbox" id="optPng"> PNG</label>
+      <label class="check"><input type="checkbox" id="optJpg"> JPG</label>
+      <label class="check"><input type="checkbox" id="optPdf"> Preview PDF</label>
+      <label class="check"><input type="checkbox" id="optAi"> Illustrator <span class="dim">(slides PDF + .ai build script) → project folder</span></label>
+      <div id="projectFolder" class="path dim"></div>
+      <p class="hint">Videos are always exported as MP4. PNG also writes the transparent text layer of video slides.</p>
+      </div>
+      <p id="noProjectOpts" class="hint" hidden>Open or parse a project to set its export folder and formats.</p>
+
+      <div class="section">AI parsing <span class="dim">(keys are stored only on this computer)</span></div>
+      <div class="row" id="aiToggle">
+        <span class="dim">Parse with AI uses</span>
+        <label class="check"><input type="radio" name="aiProvider" value="claude"> Anthropic API</label>
+        <label class="check"><input type="radio" name="aiProvider" value="deepseek"> DeepSeek API</label>
+      </div>
+      <div class="aikey" data-provider="claude">
+        <div><b>Anthropic API</b> <span class="dim">(Claude)</span> <span id="keyStatus_claude" class="dim"></span></div>
+        <div class="row">
+          <input id="keyInput_claude" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" style="flex:1">
+          <button id="keySave_claude">Save</button>
+          <button id="keyRemove_claude" title="Remove the saved key">✕</button>
+        </div>
+        <span class="hint">Create one at console.anthropic.com → API keys.</span>
+      </div>
+      <div class="aikey" data-provider="deepseek">
+        <div><b>DeepSeek API</b> <span class="dim">(deepseek-chat, Anthropic-compatible)</span> <span id="keyStatus_deepseek" class="dim"></span></div>
+        <div class="row">
+          <input id="keyInput_deepseek" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" style="flex:1">
+          <button id="keySave_deepseek">Save</button>
+          <button id="keyRemove_deepseek" title="Remove the saved key">✕</button>
+        </div>
+        <span class="hint">Create one at platform.deepseek.com → API keys.</span>
+      </div>
+    </div>
+  </div>
   <button id="openExportBtn" disabled>Open folder</button>
 </header>
 
@@ -28,7 +75,7 @@
     </label>
     <div class="row">
       <button id="parseBtn" class="accent">Parse</button>
-      <button id="claudeBtn" title="Parse the brief with Claude (needs the anthropic package and an API key)">Parse with Claude</button>
+      <button id="aiBtn">Parse with AI</button>
     </div>
     <p class="hint">Drop images/videos anywhere – they are matched to slides by file name (Frame.io names, “Slide 3”), else to the selected slide.</p>
   </section>
@@ -40,11 +87,19 @@
         <div id="noMedia">No media yet<br><span class="dim">drop a file here</span></div>
         <div id="canvas">
           <img id="bgImg" alt="" draggable="false">
+          <video id="bgVideo" playsinline loop preload="auto"></video>
           <div id="shades"></div>
           <div id="layers"></div>
         </div>
         <div id="guideV" class="guide v"></div>
         <div id="guideH" class="guide h"></div>
+        <div id="videoBar" hidden>
+          <button id="vidPlay" class="sq" title="Play / pause (Space)">▶</button>
+          <input type="range" id="vidSeek" min="0" max="1000" value="0" title="Scrub">
+          <span id="vidTime">0:00</span>
+          <button id="vidMute" class="sq" title="Sound on / off">🔊</button>
+        </div>
+        <div id="vidPending" hidden>preparing video preview…</div>
         <div id="dropOverlay">Drop to add media</div>
       </div>
     </div>
@@ -60,6 +115,9 @@
       <label>Preset
         <select id="presetSel"></select>
       </label>
+      <img id="presetThumb" alt="" hidden>
+
+      <div id="slotFields" class="col" hidden></div>
 
       <div id="titleFields">
         <label>Headline <span class="dim">(one line per row)</span>
@@ -100,6 +158,12 @@
       <div class="section">Shade behind text</div>
       <label class="check"><input type="checkbox" id="shadeChk"> On</label>
       <div id="shadeControls" class="col">
+        <label class="slider">Shape
+          <select id="shShape" style="flex:1">
+            <option value="box">Soft box behind the text</option>
+            <option value="linear">Linear gradient (full width)</option>
+          </select>
+        </label>
         <label class="slider">Strength <input type="range" id="shOpacity" min="0" max="1" step="0.01"><span id="shOpacityVal" class="val"></span></label>
         <label class="slider">Softness <input type="range" id="shSoftness" min="0" max="150" step="1"><span id="shSoftnessVal" class="val"></span></label>
         <label class="slider">Size <input type="range" id="shSpread" min="0" max="250" step="1"><span id="shSpreadVal" class="val"></span></label>
@@ -109,6 +173,23 @@
             <option value="normal">Normal (transparency)</option>
           </select>
           <input type="color" id="shColor" title="Shade colour">
+        </div>
+      </div>
+
+      <div id="logoShadeSection">
+        <div class="section">Gradient behind logo</div>
+        <label class="check"><input type="checkbox" id="lsChk"> On <span class="dim">(from the top edge, full width)</span></label>
+        <div id="lsControls" class="col">
+          <label class="slider">Strength <input type="range" id="lsOpacity" min="0" max="1" step="0.01"><span id="lsOpacityVal" class="val"></span></label>
+          <label class="slider">Length <input type="range" id="lsSoftness" min="0" max="150" step="1"><span id="lsSoftnessVal" class="val"></span></label>
+          <label class="slider">Reach <input type="range" id="lsSpread" min="0" max="250" step="1"><span id="lsSpreadVal" class="val"></span></label>
+          <div class="row">
+            <select id="lsMode" style="width:auto">
+              <option value="multiply">Multiply</option>
+              <option value="normal">Normal (transparency)</option>
+            </select>
+            <input type="color" id="lsColor" title="Gradient colour">
+          </div>
         </div>
       </div>
 
@@ -127,6 +208,13 @@
 
       <div class="section">Export log</div>
       <pre id="exportLog"></pre>
+
+      <!-- pinned to the bottom of the editor, so exporting never needs scrolling -->
+      <div id="inspFooter" class="row">
+        <span id="footerSlide" class="dim"></span>
+        <div class="spacer"></div>
+        <button id="exportSlideBtn" class="accent" title="Save this slide as a PNG – asks where to save it">Export slide</button>
+      </div>
     </div>
   </section>
 </main>

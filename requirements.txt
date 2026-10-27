@@ -4,5 +4,6 @@ numpy>=1.24
 opencv-python>=4.8      # face detection, runs in a subprocess (carousel/faces_worker.py)
 requests>=2.31
 imageio-ffmpeg>=0.4     # fallback ffmpeg binary when ffmpeg isn't installed
-# optional: "Parse with Claude" button
-# anthropic>=1.0
+reportlab>=4.0         # editable Illustrator (.ai) export
+pymupdf>=1.24          # reading .ai / .pdf designs for "Import title preset"
+anthropic>=1.0          # "Parse with Claude" (key: ⚙ menu)

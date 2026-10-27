@@ -18,8 +18,9 @@ A brief looks like:
     Text:
     Verkostet gemeinsam mit ...
 
-Every slide becomes a dict with the schema shared with claude_parser.py:
-    {index, preset, headline[], subline, body, media_type, media_urls[]}
+Every slide becomes a dict with the schema shared with ai_parser.py:
+    {index, preset, headline[], subline, body, media_type, media_urls[], alt_media_urls[]}
+Links after an "oder:" line are alternatives; each becomes its own SlideN_alt slide.
 """
 import json
 import re
@@ -72,12 +73,13 @@ def _split_title(lines):
 def _new_slide(index, header_rest):
     return {"index": index, "preset": _match_preset(header_rest) if header_rest else None,
             "headline": [], "subline": "", "body": "", "media_type": None, "media_urls": [],
-            "_title_kind": None}
+            "alt_media_urls": [], "_title_kind": None}
 
 
 def parse_brief(text):
     slides, cur, section = [], None, None
     sections = {}
+    alt_next = False
 
     def flush():
         if cur is None:
@@ -90,7 +92,8 @@ def parse_brief(text):
                 cur["preset"] = "ontour"
             else:
                 cur["preset"] = "body"
-        if cur["preset"] == "gettoknow":
+        p = PRESETS.get(cur["preset"], {})
+        if cur["preset"] == "gettoknow" or "kicker" in p.get("slots", {}):
             cur["headline"] = title_lines          # kicker line + title line
         elif title_lines:
             cur["headline"], cur["subline"] = _split_title(title_lines)
@@ -108,6 +111,7 @@ def parse_brief(text):
         if m:
             flush()
             cur, section, sections = _new_slide(int(m.group(1)), m.group(2)), None, {}
+            alt_next = False
             continue
         if cur is None:            # text before the first "Slide N" line
             continue
@@ -128,10 +132,18 @@ def parse_brief(text):
             else:
                 continue
         if OR_RE.match(raw):
+            alt_next = True                         # links after "oder:" become SlideN_alt
             continue
         urls = URL_RE.findall(raw)
         if urls:
-            cur["media_urls"] += [u for u in urls if u not in cur["media_urls"]]
+            for u in urls:
+                if u in cur["media_urls"] or u in cur["alt_media_urls"]:
+                    continue
+                if alt_next and cur["media_urls"]:
+                    cur["alt_media_urls"].append(u)
+                else:
+                    cur["media_urls"].append(u)
+            alt_next = False
             if cur["media_type"] is None:
                 cur["media_type"] = "video" if "frame.io" in urls[0] else "image"
             continue

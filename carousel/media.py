@@ -3,14 +3,16 @@ import hashlib
 import html
 import os
 import re
+import subprocess
 import sys
+import threading
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ffmpeg_utils import find_ffmpeg, grab_frame  # noqa: E402
+from ffmpeg_utils import NO_WINDOW, find_ffmpeg, grab_frame, probe_video  # noqa: E402
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/130.0 Safari/537.36"}
@@ -46,6 +48,58 @@ def make_poster(video, media_dir):
         return out.name
     except Exception:
         return None
+
+
+# ── browser preview copies of videos ────────────────────────────────────────
+_preview_jobs = set()
+_preview_lock = threading.Lock()
+
+
+def preview_path(video, media_dir):
+    return Path(media_dir) / ".preview" / (Path(video).stem + ".mp4")
+
+
+def preview_info(video, media_dir):
+    """{name, w, h} of a finished preview copy, else None (and start making one)."""
+    out = preview_path(video, media_dir)
+    meta = out.with_suffix(".json")
+    if out.exists() and meta.exists():
+        import json
+        return {"name": f".preview/{out.name}", **json.loads(meta.read_text())}
+    ensure_preview(video, media_dir)
+    return None
+
+
+def ensure_preview(video, media_dir):
+    """Make a small H.264 copy in the background so any source (HEVC .mov, 4K…) plays in
+    the browser. Rotation is applied, so its size is the displayed size."""
+    src = Path(media_dir) / Path(video).name
+    out = preview_path(video, media_dir)
+    with _preview_lock:
+        if str(out) in _preview_jobs or out.exists() or not src.exists():
+            return
+        _preview_jobs.add(str(out))
+
+    def job():
+        import json
+        try:
+            ffmpeg, _ = find_ffmpeg()
+            out.parent.mkdir(exist_ok=True)
+            tmp = out.with_name(out.stem + ".part.mp4")
+            vf = "scale='if(gt(iw,ih),1280,-2)':'if(gt(iw,ih),-2,1280)'"
+            r = subprocess.run([ffmpeg, "-y", "-i", str(src), "-vf", vf, "-c:v", "libx264",
+                                "-preset", "veryfast", "-crf", "26", "-pix_fmt", "yuv420p",
+                                "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(tmp)],
+                               capture_output=True, creationflags=NO_WINDOW)
+            if r.returncode == 0:
+                w, h, dur = probe_video(ffmpeg, tmp)
+                tmp.replace(out)
+                out.with_suffix(".json").write_text(json.dumps({"w": w, "h": h, "duration": dur}))
+        finally:
+            with _preview_lock:
+                _preview_jobs.discard(str(out))
+
+    threading.Thread(target=job, daemon=True).start()
 
 
 # ── Picdrop ─────────────────────────────────────────────────────────────────

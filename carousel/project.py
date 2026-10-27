@@ -1,5 +1,6 @@
 """Project / slide state: creation from a parsed brief, persistence, auto layout."""
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 import layout as L
 import render as R
 
-ROOT = Path(__file__).resolve().parent.parent / "projects"
+ROOT = Path(os.environ.get("CAROUSEL_PROJECTS") or Path(__file__).resolve().parent.parent / "projects")
 
 
 def slugify(name):
@@ -28,6 +29,7 @@ def new_slide(parsed):
     size = R.PRESETS.get(preset, {}).get("body_size")
     slide = {
         "index": parsed["index"],
+        "alt": parsed.get("alt", 0),
         "preset": preset,
         "media_type": parsed.get("media_type"),
         "media": [{"url": u, "kind": parsed.get("media_type"), "status": "pending", "file": None,
@@ -46,11 +48,43 @@ def new_slide(parsed):
         "zone_auto": True,
         "offsets": {},
         "shade": dict(R.SHADE_DEFAULTS),
+        "logo_shade": dict(R.LOGO_SHADE_DEFAULTS),
         "crop": {"fx": 0.5, "fy": 0.5, "zoom": 1.0},
         "legibility": {"score": None, "low": False},
+        "slots": {},
     }
+    fill_slots(slide)
     rewrap(slide)
     return slide
+
+
+def fill_slots(slide):
+    """Imported presets: put the brief's headline / sub line into the matching text blocks.
+    Blocks without brief text keep the design's own text (e.g. a fixed series name)."""
+    p = R.PRESETS.get(slide["preset"], {})
+    if p.get("type") != "template":
+        return
+    slots = p["slots"]
+    head = [h for h in slide.get("headline", []) if h.strip()]
+    sub = slide.get("subline", "")
+    texts = {}
+    if "kicker" in slots and len(head) > 1 and not sub:
+        texts["kicker"], head = head[0], head[1:]
+    if head and "headline" in slots:
+        texts["headline"] = "\n".join(head)
+    if sub and "subline" in slots:
+        texts["subline"] = sub
+    slide["slots"] = texts
+
+
+def expand_alternatives(parsed_slides):
+    """Each "oder:" link becomes its own slide right after the main one (SlideN_alt)."""
+    out = []
+    for s in parsed_slides:
+        out.append({**s, "alt": 0})
+        for k, url in enumerate(s.get("alt_media_urls") or [], start=1):
+            out.append({**s, "alt": k, "media_urls": [url], "alt_media_urls": []})
+    return out
 
 
 def rewrap(slide):
@@ -123,7 +157,7 @@ def create(name, brief, parsed_slides):
     while (project_dir(name) / "project.json").exists():
         name, n = f"{base}-{n}", n + 1
     project = {"name": name, "created": time.time(), "brief": brief,
-               "slides": [new_slide(s) for s in parsed_slides]}
+               "slides": [new_slide(s) for s in expand_alternatives(parsed_slides)]}
     media_dir(name).mkdir(parents=True, exist_ok=True)
     save(project)
     return project
