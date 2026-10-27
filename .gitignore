@@ -1,0 +1,9 @@
+__pycache__/
+.pytest_cache/
+projects/
+
+# client material – stays local
+carousel/assets/logo.png
+carousel/assets/fonts/
+*.ai
+*.pdf

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carousel Builder</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>▶ CAROUSEL BUILDER</h1>
+  <select id="projectSelect" title="Open a previous project"><option value="">— open project —</option></select>
+  <span id="projectName" class="dim"></span>
+  <div class="spacer"></div>
+  <span id="statusLine" class="dim"></span>
+  <button id="exportBtn" class="accent" disabled>Export all</button>
+  <button id="openExportBtn" disabled>Open folder</button>
+</header>
+
+<main>
+  <!-- left: brief -->
+  <section id="briefPane" class="pane">
+    <label>Project name
+      <input id="nameInput" placeholder="e.g. livetasting-nov">
+    </label>
+    <label class="grow">Brief
+      <textarea id="briefInput" spellcheck="false" placeholder="Paste the brief here…&#10;&#10;Slide 1 (Typo wie ON TOUR)&#10;Groß Typo:&#10;LIVE&#10;TASTING&#10;…"></textarea>
+    </label>
+    <div class="row">
+      <button id="parseBtn" class="accent">Parse</button>
+      <button id="claudeBtn" title="Parse the brief with Claude (needs the anthropic package and an API key)">Parse with Claude</button>
+    </div>
+    <p class="hint">Drop images/videos anywhere – they are matched to slides by file name (Frame.io names, “Slide 3”), else to the selected slide.</p>
+  </section>
+
+  <!-- centre: stage + strip -->
+  <section id="centerPane">
+    <div id="stageWrap">
+      <div id="stage">
+        <div id="noMedia">No media yet<br><span class="dim">drop a file here</span></div>
+        <div id="canvas">
+          <img id="bgImg" alt="" draggable="false">
+          <div id="shades"></div>
+          <div id="layers"></div>
+        </div>
+        <div id="guideV" class="guide v"></div>
+        <div id="guideH" class="guide h"></div>
+        <div id="dropOverlay">Drop to add media</div>
+      </div>
+    </div>
+    <div id="strip"></div>
+  </section>
+
+  <!-- right: inspector -->
+  <section id="inspector" class="pane">
+    <p class="dim" id="emptyInspector">Parse a brief to start.</p>
+    <div id="insp" hidden>
+      <h2 id="inspTitle">Slide</h2>
+
+      <label>Preset
+        <select id="presetSel"></select>
+      </label>
+
+      <div id="titleFields">
+        <label>Headline <span class="dim">(one line per row)</span>
+          <textarea id="headlineInput" rows="2"></textarea>
+        </label>
+        <label id="sublineWrap">Sub line <span class="dim">(text after the first | goes on its own line)</span>
+          <input id="sublineInput">
+        </label>
+        <label id="kickerWrap">Kicker <span class="dim">(small line above the title)</span>
+          <input id="kickerInput">
+        </label>
+      </div>
+
+      <label>Text from brief
+        <textarea id="bodyInput" rows="4"></textarea>
+      </label>
+
+      <label>Lines on slide <span id="linesMode" class="dim"></span>
+        <textarea id="linesInput" rows="6" spellcheck="false"></textarea>
+      </label>
+      <div class="row">
+        <button id="rewrapBtn" title="Discard manual edits and auto-balance again">Auto-wrap</button>
+        <span class="dim">lines</span>
+        <button id="linesMinus" class="sq">−</button><button id="linesPlus" class="sq">+</button>
+        <span class="dim">size</span>
+        <button id="sizeMinus" class="sq">−</button><span id="sizeVal">36</span><button id="sizePlus" class="sq">+</button>
+      </div>
+
+      <div class="section">Position</div>
+      <div class="row top">
+        <div id="zoneGrid"></div>
+        <div class="col">
+          <button id="autoBtn" class="accent">Auto-place</button>
+          <div id="legibility"></div>
+        </div>
+      </div>
+
+      <div class="section">Shade behind text</div>
+      <label class="check"><input type="checkbox" id="shadeChk"> On</label>
+      <div id="shadeControls" class="col">
+        <label class="slider">Strength <input type="range" id="shOpacity" min="0" max="1" step="0.01"><span id="shOpacityVal" class="val"></span></label>
+        <label class="slider">Softness <input type="range" id="shSoftness" min="0" max="150" step="1"><span id="shSoftnessVal" class="val"></span></label>
+        <label class="slider">Size <input type="range" id="shSpread" min="0" max="250" step="1"><span id="shSpreadVal" class="val"></span></label>
+        <div class="row">
+          <select id="shMode" style="width:auto">
+            <option value="multiply">Multiply</option>
+            <option value="normal">Normal (transparency)</option>
+          </select>
+          <input type="color" id="shColor" title="Shade colour">
+        </div>
+      </div>
+
+      <div class="section">Media</div>
+      <div id="mediaList"></div>
+      <div class="row">
+        <label class="filebtn">Add file…<input type="file" id="fileInput" accept="image/*,video/*" hidden></label>
+        <button id="refetchBtn">Retry download</button>
+        <button id="frameioBtn" title="Opens the missing Frame.io videos in your browser. Click Download there – files landing in your Downloads folder are imported automatically.">Get Frame.io videos</button>
+      </div>
+
+      <div class="section">Crop</div>
+      <label class="slider">Horizontal <input type="range" id="fxRange" min="0" max="1" step="0.01"></label>
+      <label class="slider">Vertical <input type="range" id="fyRange" min="0" max="1" step="0.01"></label>
+      <label class="slider">Zoom <input type="range" id="zoomRange" min="1" max="2.5" step="0.01"></label>
+
+      <div class="section">Export log</div>
+      <pre id="exportLog"></pre>
+    </div>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "_comment": "All units are px on the 1080x1440 artboard (top-left origin). y values are text baselines. Measured from livetasting27_10.pdf / Pruning.ai.",
+  "canvas": {"w": 1080, "h": 1440},
+  "fonts": {
+    "neutra": ["NeutraText-Book.ttf", "NeutrafaceText-Book.ttf", "NeutraText-Book.otf"],
+    "trajan": ["TrajanPro3.ttf", "TrajanPro3-Regular.otf", "TrajanPro-Regular.otf"]
+  },
+  "color": [255, 255, 255],
+
+  "body": {
+    "font": "neutra",
+    "size": 36,
+    "tracking": 0.3,
+    "leading": 1.2,
+    "uppercase": true,
+    "margin_x": 100,
+    "max_width": 880,
+    "min_lines": 4,
+    "max_lines": 6,
+    "zones": {
+      "top":    {"first_baseline": 230},
+      "middle": {"center": 720},
+      "bottom": {"last_baseline": 1300}
+    }
+  },
+
+  "presets": {
+    "body": {
+      "label": "Body slide"
+    },
+    "ontour": {
+      "label": "ON TOUR (big left Trajan headline)",
+      "aliases": ["ON TOUR", "ONTOUR"],
+      "logo": {"width": 566, "top": 156, "center_x": 540},
+      "headline": {"font": "trajan", "size": 139.6, "tracking": 0.05, "leading": 1.2, "x": 103, "uppercase": true},
+      "subline": {"font": "neutra", "size": 37.8, "tracking": 0.25, "leading": 1.2, "x": 114, "last_baseline": 1266, "max_width": 760, "uppercase": true},
+      "gap_headline_subline": 68,
+      "body_default_zone": "top-right"
+    },
+    "gettoknow": {
+      "label": "GET TO KNOW (small centred Trajan title)",
+      "aliases": ["GET TO KNOW", "GETTOKNOW", "GET-TO-KNOW"],
+      "logo": null,
+      "kicker": {"font": "neutra", "size": 36, "tracking": 0.3, "center_x": 540, "baseline": 691, "uppercase": true},
+      "title": {"font": "trajan", "size": 50, "tracking": 0.05, "center_x": 540, "baseline": 751, "uppercase": true},
+      "body_size": 32,
+      "body_default_zone": "bottom-center"
+    }
+  }
+}

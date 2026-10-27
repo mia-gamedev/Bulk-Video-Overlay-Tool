@@ -6,6 +6,7 @@ import tempfile
 import math
 import os
 import shutil
+import re
 from pathlib import Path
 
 # ── theme ───────────────────────────────────────────────────────────────────
@@ -24,6 +25,8 @@ FONT    = ("Consolas", 10)
 FONT_LG = ("Consolas", 13, "bold")
 FONT_SM = ("Consolas", 9)
 FONT_XS = ("Consolas", 8)
+
+from ffmpeg_utils import find_ffmpeg, _load_config, _save_config
 
 
 class FFmpegGUI(tk.Tk):
@@ -44,7 +47,42 @@ class FFmpegGUI(tk.Tk):
 
     # ── ffmpeg check ────────────────────────────────────────────────────────
     def _check_ffmpeg(self):
-        self.ffmpeg_ok = shutil.which("ffmpeg") is not None
+        self.ffmpeg, self.ffprobe = find_ffmpeg()
+        self.ffmpeg_ok = self.ffmpeg is not None
+
+    def _locate_ffmpeg(self):
+        """Let the user point at ffmpeg manually; remember the choice."""
+        ft = [("ffmpeg", "ffmpeg.exe"), ("All files", "*.*")] if os.name == "nt" \
+            else [("All files", "*")]
+        path = filedialog.askopenfilename(title="Locate ffmpeg executable", filetypes=ft)
+        if not path:
+            return False
+        cfg = _load_config()
+        cfg["ffmpeg_path"] = path
+        _save_config(cfg)
+        self._check_ffmpeg()
+        self._update_ffmpeg_label()
+        return self.ffmpeg_ok
+
+    def _require_ffmpeg(self):
+        if self.ffmpeg_ok:
+            return True
+        if messagebox.askyesno("ffmpeg not found",
+                "ffmpeg could not be found on PATH or in the usual install folders.\n\n"
+                "Install it (e.g. 'winget install Gyan.FFmpeg' or from "
+                "https://ffmpeg.org/download.html), or point the tool at ffmpeg.exe.\n\n"
+                "Locate ffmpeg now?"):
+            return self._locate_ffmpeg()
+        return False
+
+    def _update_ffmpeg_label(self):
+        if self.ffmpeg_ok:
+            self.ffmpeg_lbl.configure(text="ffmpeg found ✓", fg=GREEN, cursor="")
+            self.ffmpeg_lbl.unbind("<Button-1>")
+        else:
+            self.ffmpeg_lbl.configure(text="ffmpeg NOT found ✗  (click to locate)",
+                                      fg=RED, cursor="hand2")
+            self.ffmpeg_lbl.bind("<Button-1>", lambda e: self._locate_ffmpeg())
 
     # ── UI ──────────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -53,9 +91,9 @@ class FFmpegGUI(tk.Tk):
         header.pack(fill="x", padx=24, pady=(20, 4))
         tk.Label(header, text="▶  BULK VIDEO OVERLAY TOOL for FFMPEG", font=FONT_LG,
                  bg=BG, fg=ACCENT).pack(side="left")
-        sc = GREEN if self.ffmpeg_ok else RED
-        st = "ffmpeg found ✓" if self.ffmpeg_ok else "ffmpeg NOT found ✗"
-        tk.Label(header, text=st, font=FONT_SM, bg=BG, fg=sc).pack(side="right")
+        self.ffmpeg_lbl = tk.Label(header, font=FONT_SM, bg=BG)
+        self.ffmpeg_lbl.pack(side="right")
+        self._update_ffmpeg_label()
         tk.Frame(self, bg=ACCENT, height=1).pack(fill="x", padx=24, pady=(0, 14))
 
         # ── two-column layout ──
@@ -246,15 +284,16 @@ class FFmpegGUI(tk.Tk):
 
         # Scale — Width and Height on one row
         _chk(0, "Scale", self.scale_enabled, toggle_scale)
-        _lbl(0, 1, "W");  v, e = _entry(0, 2, "1440"); self.param_vars.append(v); self._scale_entries.append(e)
-        _lbl(0, 3, "H");  v, e = _entry(0, 4, "-1");   self.param_vars.append(v); self._scale_entries.append(e)
+        # W and H both set = fill that frame (cover); -1 on one side keeps the aspect ratio
+        _lbl(0, 1, "W");  v, e = _entry(0, 2, "1080"); self.param_vars.append(v); self._scale_entries.append(e)
+        _lbl(0, 3, "H");  v, e = _entry(0, 4, "1440"); self.param_vars.append(v); self._scale_entries.append(e)
 
         # Crop — W/H on one row, X/Y on the next
         _chk(1, "Crop", self.crop_enabled, toggle_crop)
         _lbl(1, 1, "W");  v, e = _entry(1, 2, "1080");           self.param_vars.append(v); self._crop_entries.append(e)
         _lbl(1, 3, "H");  v, e = _entry(1, 4, "1440");           self.param_vars.append(v); self._crop_entries.append(e)
-        _lbl(2, 1, "X");  v, e = _entry(2, 2, "(1440-1080)/2");  self.param_vars.append(v); self._crop_entries.append(e)
-        _lbl(2, 3, "Y");  v, e = _entry(2, 4, "0");              self.param_vars.append(v); self._crop_entries.append(e)
+        _lbl(2, 1, "X");  v, e = _entry(2, 2, "(iw-ow)/2");      self.param_vars.append(v); self._crop_entries.append(e)
+        _lbl(2, 3, "Y");  v, e = _entry(2, 4, "(ih-oh)/2");      self.param_vars.append(v); self._crop_entries.append(e)
 
         # ADVANCED OPTIONS (collapsible encoding)
         tk.Frame(right, bg=BORDER, height=1).pack(fill="x", pady=(12, 8))
@@ -469,12 +508,12 @@ class FFmpegGUI(tk.Tk):
                 pre  = self._trim_pre_args()
                 post = self._trim_post_args()
                 if fc:
-                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", *pre, "-i", inp,
                            "-filter_complex", fc, "-map", map_out,
                            *self._audio_args(), *self._fps_args(),
                            *self._codec_args(), *post, out]
                 else:
-                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", *pre, "-i", inp,
                            *self._audio_args(), *self._fps_args(),
                            *self._codec_args(), *post, out]
             txt = " ".join(cmd)
@@ -621,12 +660,18 @@ class FFmpegGUI(tk.Tk):
     def _probe_duration(self, path):
         try:
             cf = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            r = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                 "-of", "default=noprint_wrappers=1:nokey=1", path],
-                capture_output=True, text=True, creationflags=cf, timeout=10
-            )
-            return float(r.stdout.strip())
+            if self.ffprobe:
+                r = subprocess.run(
+                    [self.ffprobe, "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=noprint_wrappers=1:nokey=1", path],
+                    capture_output=True, text=True, creationflags=cf, timeout=10
+                )
+                return float(r.stdout.strip())
+            # no ffprobe (e.g. imageio-ffmpeg): parse "Duration:" from ffmpeg -i
+            r = subprocess.run([self.ffmpeg, "-hide_banner", "-i", path],
+                               capture_output=True, text=True, creationflags=cf, timeout=10)
+            h, m, sec = re.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", r.stderr).groups()
+            return int(h) * 3600 + int(m) * 60 + float(sec)
         except Exception:
             return 3600.0
 
@@ -690,19 +735,20 @@ class FFmpegGUI(tk.Tk):
             ts_str  = fmt_ts(secs)
             if overlay:
                 fc, map_out = self._build_filter_complex(with_overlay=True,
-                                                         preview_width=320)
-                cmd = ["ffmpeg", "-y", "-ss", ts_str, "-i", inp,
+                                                         preview_width=320,
+                                                         overlay_path=overlay)
+                cmd = [self.ffmpeg, "-y", "-ss", ts_str, "-i", inp,
                        *self._overlay_input_args(overlay),
                        "-filter_complex", fc, "-map", map_out, "-vframes", "1", tmp_path]
             else:
                 fc, map_out = self._build_filter_complex(with_overlay=False,
                                                          preview_width=320)
                 if fc:
-                    cmd = ["ffmpeg", "-y", "-ss", ts_str, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", "-ss", ts_str, "-i", inp,
                            "-filter_complex", fc, "-map", map_out,
                            "-vframes", "1", tmp_path]
                 else:
-                    cmd = ["ffmpeg", "-y", "-ss", ts_str, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", "-ss", ts_str, "-i", inp,
                            "-vframes", "1", tmp_path]
 
             def run():
@@ -788,8 +834,7 @@ class FFmpegGUI(tk.Tk):
         load_frame(cur_secs)
 
     def _export_screenshot(self):
-        if not self.ffmpeg_ok:
-            messagebox.showerror("ffmpeg not found", "ffmpeg not on PATH.")
+        if not self._require_ffmpeg():
             return
         sel_name = self.scr_video_var.get()
         if not sel_name:
@@ -809,17 +854,18 @@ class FFmpegGUI(tk.Tk):
                       f"{p.stem}_screenshot_{ts_safe}.png")
 
         if overlay:
-            fc, map_out = self._build_filter_complex(with_overlay=True)
-            cmd = ["ffmpeg", "-y", "-ss", ts, "-i", inp,
+            fc, map_out = self._build_filter_complex(with_overlay=True, overlay_path=overlay,
+                                                     still=True)
+            cmd = [self.ffmpeg, "-y", "-ss", ts, "-i", inp,
                    *self._overlay_input_args(overlay),
                    "-filter_complex", fc, "-map", map_out, "-vframes", "1", out]
         else:
-            fc, map_out = self._build_filter_complex(with_overlay=False)
+            fc, map_out = self._build_filter_complex(with_overlay=False, still=True)
             if fc:
-                cmd = ["ffmpeg", "-y", "-ss", ts, "-i", inp,
+                cmd = [self.ffmpeg, "-y", "-ss", ts, "-i", inp,
                        "-filter_complex", fc, "-map", map_out, "-vframes", "1", out]
             else:
-                cmd = ["ffmpeg", "-y", "-ss", ts, "-i", inp, "-vframes", "1", out]
+                cmd = [self.ffmpeg, "-y", "-ss", ts, "-i", inp, "-vframes", "1", out]
 
         self._log(f"\n📷  Screenshot: {p.name} @ {ts}\n$ {' '.join(cmd)}\n")
         threading.Thread(target=self._run_screenshot, args=(cmd, out), daemon=True).start()
@@ -877,11 +923,23 @@ class FFmpegGUI(tk.Tk):
             return ["-map", "0:a?", "-c:a", "aac"] + (["-b:a", br] if br else [])
         return ["-map", "0:a?", "-c:a", "copy"]
 
-    def _build_filter_complex(self, with_overlay, preview_width=None):
+    @staticmethod
+    def _is_num(v):
+        try:
+            float(v)
+            return True
+        except ValueError:
+            return False
+
+    def _build_filter_complex(self, with_overlay, preview_width=None, overlay_path=None,
+                              still=False):
         """Build (filter_complex_str | None, map_label | None).
 
         with_overlay:  True when a second -i (overlay) is already in the command.
         preview_width: if set, append a final scale for display-only use.
+        overlay_path:  the overlay file; images are held for the whole video,
+                       looped video overlays stop after their last complete cycle.
+        still:         output is a single image (screenshot), keep full chroma.
         Returns (None, None) when no filters are needed at all.
         """
         scale_on = self.scale_enabled.get()
@@ -897,18 +955,32 @@ class FFmpegGUI(tk.Tk):
             steps.append(f"[{prev}]{filt}[{lbl}]")
             return lbl
 
-        if scale_on:
+        fill = scale_on and all(self._is_num(v) and float(v) > 0 for v in (sw, sh))
+        if fill:
+            # cover: scale until the W x H frame is completely filled, never letterbox
+            prev = add(f"scale={sw}:{sh}:force_original_aspect_ratio=increase")
+        elif scale_on:
+            # -1 can give odd sizes that libx264 rejects; -2 keeps them even
+            sw, sh = [("-2" if v.strip() == "-1" else v) for v in (sw, sh)]
             prev = add(f"scale={sw}:{sh}")
         if crop_on:
             prev = add(f"crop={cw}:{ch}:{cx}:{cy}")
+        elif fill:
+            prev = add(f"crop={sw}:{sh}")          # land exactly on W x H, centred
+        if scale_on or crop_on:
+            prev = add("setsar=1")
         if with_overlay:
+            is_video_ov = bool(overlay_path) and Path(overlay_path).suffix.lower() in self._VIDEO_EXTS
+            eof = "pass" if is_video_ov else "repeat"   # a PNG is one frame: keep showing it
             ov_lbl  = f"s{n[0]}"; n[0] += 1
             out_lbl = f"s{n[0]}"; n[0] += 1
             steps.append(f"[1:v]format=rgba[{ov_lbl}]")
-            steps.append(f"[{prev}][{ov_lbl}]overlay=0:0:eof_action=pass[{out_lbl}]")
+            steps.append(f"[{prev}][{ov_lbl}]overlay=0:0:eof_action={eof}[{out_lbl}]")
             prev = out_lbl
         if preview_width:
             prev = add(f"scale={preview_width}:-2")
+        elif steps and not still:
+            prev = add("format=yuv420p")           # 8-bit 4:2:0 for any source (10-bit / HDR phones)
 
         if not steps:
             return None, None
@@ -931,13 +1003,13 @@ class FFmpegGUI(tk.Tk):
 
     def _build_command(self, inp, out, overlay, n_loops=None):
         is_vid_ov = Path(overlay).suffix.lower() in self._VIDEO_EXTS
-        fc, map_out = self._build_filter_complex(with_overlay=True)
+        fc, map_out = self._build_filter_complex(with_overlay=True, overlay_path=overlay)
         if is_vid_ov and n_loops is not None:
             ov_args = ["-stream_loop", str(n_loops - 1), "-i", overlay]
         else:
             ov_args = self._overlay_input_args(overlay)
         return [
-            "ffmpeg", "-y", *self._trim_pre_args(), "-i", inp, *ov_args,
+            self.ffmpeg, "-y", *self._trim_pre_args(), "-i", inp, *ov_args,
             "-filter_complex", fc, "-map", map_out,
             *self._audio_args(), *self._fps_args(), *self._codec_args(),
             *self._trim_post_args(), out
@@ -953,10 +1025,7 @@ class FFmpegGUI(tk.Tk):
 
     # ── run / stop ───────────────────────────────────────────────────────────
     def _run(self):
-        if not self.ffmpeg_ok:
-            messagebox.showerror("ffmpeg not found",
-                "ffmpeg was not found on your PATH.\n"
-                "Download it from https://ffmpeg.org/download.html")
+        if not self._require_ffmpeg():
             return
         if not self.input_files:
             messagebox.showwarning("No files", "Add at least one input video.")
@@ -1000,12 +1069,12 @@ class FFmpegGUI(tk.Tk):
                 pre  = self._trim_pre_args()
                 post = self._trim_post_args()
                 if fc:
-                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", *pre, "-i", inp,
                            "-filter_complex", fc, "-map", map_out,
                            *self._audio_args(), *self._fps_args(),
                            *self._codec_args(), *post, out]
                 else:
-                    cmd = ["ffmpeg", "-y", *pre, "-i", inp,
+                    cmd = [self.ffmpeg, "-y", *pre, "-i", inp,
                            *self._audio_args(), *self._fps_args(),
                            *self._codec_args(), *post, out]
 

@@ -1,0 +1,8 @@
+flask>=3.0
+pillow>=10.0
+numpy>=1.24
+opencv-python>=4.8      # face detection, runs in a subprocess (carousel/faces_worker.py)
+requests>=2.31
+imageio-ffmpeg>=0.4     # fallback ffmpeg binary when ffmpeg isn't installed
+# optional: "Parse with Claude" button
+# anthropic>=1.0
