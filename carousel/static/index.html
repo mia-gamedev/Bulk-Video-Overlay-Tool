@@ -14,7 +14,14 @@
   <label class="filebtn" title="Turn a title-slide design (.ai with PDF compatibility, or .pdf) into a new preset">Import title preset (.ai)…<input type="file" id="presetFile" accept=".ai,.pdf" hidden></label>
   <div class="spacer"></div>
   <span id="statusLine" class="dim"></span>
-  <button id="exportBtn" class="accent" disabled title="Images + videos to the export folder, Illustrator files to the project folder">Export all</button>
+  <div id="exportWrap">
+    <button id="exportBtn" class="accent" disabled title="Images + videos to the export folder, Illustrator files to the project folder">Export all</button>
+    <div id="logPop" hidden>
+      <div class="row"><b id="logTitle">Export</b><div class="spacer"></div><button id="logClose" class="sq" title="Close">✕</button></div>
+      <div id="logBarWrap" hidden><div id="logBar"></div></div>
+      <pre id="exportLog"></pre>
+    </div>
+  </div>
   <div id="exportOptsWrap">
     <button id="exportOptsBtn" class="icon" title="Settings – export folder and formats, Claude API key">⚙</button>
     <div id="exportOpts" hidden>
@@ -205,9 +212,6 @@
       <label class="slider">Horizontal <input type="range" id="fxRange" min="0" max="1" step="0.01"></label>
       <label class="slider">Vertical <input type="range" id="fyRange" min="0" max="1" step="0.01"></label>
       <label class="slider">Zoom <input type="range" id="zoomRange" min="1" max="2.5" step="0.01"></label>
-
-      <div class="section">Export log</div>
-      <pre id="exportLog"></pre>
 
       <!-- pinned to the bottom of the editor, so exporting never needs scrolling -->
       <div id="inspFooter" class="row">

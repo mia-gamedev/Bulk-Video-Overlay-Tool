@@ -36,6 +36,7 @@ async function init() {
   state.status = await api("/api/status");
   const s = state.status;
   updateAiButtons(s.ai);
+  if (s.outdated) serverOutdated();
   const missing = [];
   if (!s.ffmpeg) missing.push("ffmpeg");
   for (const [k, v] of Object.entries(s.fonts)) if (!v) missing.push(`font ${k}`);
@@ -53,6 +54,7 @@ async function init() {
   bindInspector();
   bindDrops();
   bindBgControls();
+  bindLog();
   bindVideo();
   $("presetFile").onchange = (e) => { if (e.target.files[0]) importPreset(e.target.files[0]); e.target.value = ""; };
   window.addEventListener("resize", layoutStage);
@@ -94,8 +96,8 @@ async function importPreset(file) {
     }
     fillPresets(r.presets);
     const slots = Object.entries(r.slots).map(([id, sp]) => `${id}: ${sp.font} ${sp.size}pt ${sp.align}`);
-    $("exportLog").textContent = [`Imported preset “${r.label}”`, ...slots,
-      r.graphics ? "graphics layer: yes" : "graphics layer: none", ...r.warnings.map((w) => "⚠ " + w)].join("\n");
+    showLog(`Imported preset “${r.label}”`, [...slots,
+      r.graphics ? "graphics layer: yes" : "graphics layer: none", ...r.warnings.map((w) => "⚠ " + w)]);
     setStatus(`Preset “${r.label}” added – pick it under Preset${r.warnings.length ? " (see warnings)" : ""}`,
               r.warnings.length > 0);
   } catch (e) { setStatus(e.message, true); }
@@ -699,8 +701,17 @@ function showExportOptions(o) {
 // ── AI API keys (app-wide, kept on this computer) ─────────────────────────
 const AI = ["claude", "deepseek"];
 
+const RESTART_MSG = "The Carousel Builder server is running an older version – close its window "
+  + "and start python carousel/app.py again";
+
+function serverOutdated() {
+  setStatus(RESTART_MSG, true);
+  $("aiBtn").disabled = true;
+}
+
 // ai = {active, providers: {claude: status, deepseek: status}}
 function updateAiButtons(ai) {
+  if (!ai || !ai.providers || !ai.providers[ai.active]) return serverOutdated();
   const c = ai.providers[ai.active], btn = $("aiBtn");
   state.ai = ai;
   btn.disabled = !(c.installed && c.source);
@@ -710,6 +721,7 @@ function updateAiButtons(ai) {
 }
 
 function showAiStatus(ai) {
+  if (!ai || !ai.providers) return serverOutdated();
   for (const r of document.querySelectorAll("input[name=aiProvider]")) r.checked = r.value === ai.active;
   for (const p of AI) {
     const c = ai.providers[p];
@@ -744,6 +756,7 @@ function bindExportOptions() {
     e.stopPropagation();
     const box = $("exportOpts");
     if (box.hidden) {
+      if (!state.exporting) $("logPop").hidden = true;
       $("projectExportOpts").hidden = !state.name;
       $("noProjectOpts").hidden = !!state.name;
       if (state.name) showExportOptions(await api(url()));
@@ -784,21 +797,52 @@ async function saveSlide() {
   for (const id of EXPORT_BTNS) $(id).disabled = false;
 }
 
+// overlay under "Export all": export progress, preset import summary
+// progress: 0..1 shows the loading bar, null hides it; failed colours it red
+function showLog(title, lines, progress = null, failed = false) {
+  $("logTitle").textContent = title;
+  $("logBarWrap").hidden = progress == null;
+  if (progress != null) {
+    $("logBar").style.width = Math.round(progress * 100) + "%";
+    $("logBar").classList.toggle("failed", failed);
+  }
+  const pre = $("exportLog");
+  pre.textContent = lines.join("\n");
+  pre.scrollTop = pre.scrollHeight;
+  $("exportOpts").hidden = true;
+  $("logPop").hidden = false;
+}
+
+function bindLog() {
+  $("logClose").onclick = () => { $("logPop").hidden = true; };
+  document.addEventListener("click", (e) => {
+    if (!state.exporting && !e.target.closest("#exportWrap")) $("logPop").hidden = true;
+  });
+}
+
 async function exportAll() {
   for (const id of EXPORT_BTNS) $(id).disabled = true;
-  $("exportOpts").hidden = true;
+  state.exporting = true;
+  showLog("Exporting… 0%", ["Starting…"], 0);
   try {
     await api(`/api/p/${state.name}/export`, { method: "POST" });
     for (;;) {
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 500));
       const st = await api(`/api/p/${state.name}/export`);
-      $("exportLog").textContent = st.log.join("\n");
       if (!st.running) {
-        setStatus(st.error ? "Export failed" : `Exported ${st.files.length} files`, !!st.error);
+        const title = st.error ? "Export failed" : `Exported ${st.files.length} files`;
+        showLog(title, st.log, st.error ? st.progress || 0 : 1, !!st.error);
+        setStatus(title, !!st.error);
         break;
       }
+      const pct = Math.round((st.progress || 0) * 100);
+      showLog(`Exporting… ${pct}%`, st.log, st.progress || 0);
     }
-  } catch (e) { setStatus(e.message, true); }
+  } catch (e) {
+    showLog("Export failed", [e.message], 0, true);
+    setStatus(e.message, true);
+  }
+  state.exporting = false;
   for (const id of EXPORT_BTNS) $(id).disabled = false;
 }
 
@@ -808,6 +852,7 @@ setInterval(async () => {
   if (!state.name || document.hidden) return;
   try {
     const r = await api(`/api/p/${state.name}/media_state`);
+    if (r.outdated) serverOutdated();
     const sig = JSON.stringify(r.state);
     const previewPending = state.view && state.view.video && state.view.video.pending;
     if ((lastMediaState !== null && sig !== lastMediaState) || previewPending) {

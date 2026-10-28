@@ -334,3 +334,26 @@ def test_parse_with_ai_via_deepseek(monkeypatch):
     assert slides[0]["preset"] == "body"                                   # unknown preset -> body
     assert slides[0]["alt_media_urls"] == ["https://x/b"]
     assert slides[1]["media_urls"] == ["https://x/v"] and slides[1]["headline"] == []
+
+
+def test_server_knows_when_its_code_is_outdated(monkeypatch):
+    import app as A
+    c = A.app.test_client()
+    assert c.get("/api/status").json["outdated"] is False
+    monkeypatch.setattr(A, "STARTED_STAMP", "older-code")          # files changed after start
+    assert c.get("/api/status").json["outdated"] is True
+
+
+def test_illustrator_text_is_one_object_per_block(slides):
+    import export_ai
+    import project as P
+    built = [P.new_slide(s) for s in P.expand_alternatives(slides)]
+    title = export_ai.text_blocks(built[0])
+    assert [b["lines"] for b in title] == [                              # 2 objects, not 5
+        ["SUMMER EDITION", "& HOUSE RIESLING", "01.06.2030 | 18:00 UHR"], ["LIVE", "TASTING"]]
+    assert title[1]["font"] == "TrajanPro3-Regular" and title[1]["tracking"] == 50
+    body = export_ai.text_blocks(built[3])
+    assert len(body) == 1 and len(body[0]["lines"]) == 4                 # one body object
+    assert body[0]["leading"] == round(36 * 1.2, 2) and body[0]["tracking"] == 300
+    lst = export_ai.text_blocks(built[-1])                                # list slide
+    assert len(lst) == 1 and "" in lst[0]["lines"]                       # spacer lines kept

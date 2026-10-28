@@ -6,4 +6,5 @@ requests>=2.31
 imageio-ffmpeg>=0.4     # fallback ffmpeg binary when ffmpeg isn't installed
 reportlab>=4.0         # editable Illustrator (.ai) export
 pymupdf>=1.24          # reading .ai / .pdf designs for "Import title preset"
-anthropic>=1.0          # "Parse with Claude" (key: ⚙ menu)
+anthropic>=1.0          # "Parse with AI" (Anthropic API or DeepSeek API, ⚙ menu)
+psutil>=5.9             # a new start replaces an older server still running

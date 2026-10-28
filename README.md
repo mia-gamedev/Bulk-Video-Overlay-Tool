@@ -371,14 +371,14 @@ projects/<name>/
 ### Illustrator files
 A real multi-artboard `.ai` can only be written by Illustrator itself, so **Export all** writes two files into the project folder:
 
-1. **`<name>_slides.pdf`** — every slide as a vector page.
+1. **`<name>_slides.pdf`** — the artwork of every slide (photo, shade, logo), one page each.
 2. **`Make <name>.ai (run in Illustrator).jsx`** — a script for Illustrator.
 
-On the computer with Illustrator, keep both files together and choose **File → Scripts → Other Script…**, then pick the `.jsx`. It creates a document with **one 1080×1440 artboard per slide** (named `slide01`, `slide01_alt`, …), pastes each slide in place and saves a **native `<name>.ai`** next to the script. The fonts used on the slides must be installed on that computer.
+On the computer with Illustrator, keep both files together and choose **File → Scripts → Other Script…**, then pick the `.jsx`. It creates a document with **one 1080×1440 artboard per slide** (named `slide01`, `slide01_alt`, …), pastes each slide's artwork in place, adds the text as native text frames and saves a **native `<name>.ai`** next to the script. The fonts used on the slides must be installed on that computer.
 
 | Object | In Illustrator |
 |--------|----------------|
-| **Text** | Live text, one object per line, in *NeutrafaceText-Book* / *TrajanPro3-Regular* with the tracking from the preset — edit it like normal type. |
+| **Text** | Native text — **one text object per block** (headline, sub line, body …) with all its lines inside, in *NeutrafaceText-Book* / *TrajanPro3-Regular* with the preset's size, tracking, leading and alignment. If a font is missing, the script says which. |
 | **Photo** | Full-resolution image in a clipping mask — release the mask to re-crop. Video slides use the first frame. |
 | **Shade** | Separate object with its blend mode (Multiply / Normal) and opacity. |
 | **Logo** | Placed image. |

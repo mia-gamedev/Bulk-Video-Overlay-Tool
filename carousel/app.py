@@ -60,6 +60,73 @@ def files(name, sub):
     return send_from_directory(d, sub, max_age=0)
 
 
+# ── one server at a time, and it knows when its code is out of date ─────────
+def _code_stamp():
+    """Hash of the server's own Python files – changes when the tool is updated."""
+    h = hashlib.sha1()
+    for f in sorted(HERE.glob("*.py")) + [HERE.parent / "ffmpeg_utils.py"]:
+        try:
+            h.update(f.read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:12]
+
+
+STARTED_STAMP = _code_stamp()
+
+
+@app.post("/api/shutdown")
+def shutdown():
+    """Used by a newly started server to replace this one (local requests only)."""
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        abort(403)
+    threading.Timer(0.3, lambda: os._exit(0)).start()
+    return jsonify({"ok": True})
+
+
+def _port_busy(port):
+    import socket
+    with socket.socket() as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def take_over_port(port):
+    """Stop older Carousel Builder servers still listening on the port (they would keep
+    answering with old code). Returns False if something else holds the port."""
+    if not _port_busy(port):
+        return True
+    import requests
+    try:                                            # newer versions: ask nicely
+        requests.post(f"http://127.0.0.1:{port}/api/shutdown", timeout=2)
+    except Exception:
+        pass
+    for _ in range(10):
+        if not _port_busy(port):
+            return True
+        time.sleep(0.2)
+    try:                                            # older versions: end those processes
+        import psutil
+    except ImportError:
+        return False
+    for c in psutil.net_connections(kind="tcp"):
+        if c.status != psutil.CONN_LISTEN or not c.laddr or c.laddr.port != port or not c.pid:
+            continue
+        if c.pid == os.getpid():
+            continue
+        try:
+            proc = psutil.Process(c.pid)
+            cmd = " ".join(proc.cmdline()).replace("\\", "/").lower()
+            if "carousel/app.py" in cmd:            # only ever our own app
+                print(f"Stopping an older Carousel Builder (pid {c.pid})…", flush=True)
+                proc.terminate()
+                proc.wait(timeout=5)
+        except (psutil.Error, OSError):
+            pass
+    time.sleep(0.3)
+    return not _port_busy(port)
+
+
 @app.get("/api/status")
 def status():
     ffmpeg, ffprobe = find_ffmpeg()
@@ -70,7 +137,7 @@ def status():
         except FileNotFoundError as e:
             fonts[k] = None
     return jsonify({"ffmpeg": ffmpeg, "ai": settings.all_status(), "fonts": fonts,
-                    "presets": preset_list()})
+                    "presets": preset_list(), "outdated": _code_stamp() != STARTED_STAMP})
 
 
 # ── app settings (⚙ menu): AI API keys ──────────────────────────────────────
@@ -405,7 +472,7 @@ def media_state(name):
                     and M.preview_path(m["file"], mdir).with_suffix(".json").exists())
     return jsonify({"state": [[m["status"], m.get("file"), ready(m)]
                               for s in proj["slides"] for m in s["media"]],
-                    "waiting": len(_waiting(proj))})
+                    "waiting": len(_waiting(proj)), "outdated": _code_stamp() != STARTED_STAMP})
 
 
 # ── views (rendered layers for the editor) ──────────────────────────────────
@@ -494,20 +561,37 @@ def _export(name):
         opts = export_options(proj)
         root, out, mdir = P.project_dir(name), export_dir(name, proj), P.media_dir(name)
         formats = [f for f in ("png", "jpg") if opts[f]]
+        # progress: each step weighted by roughly how long it takes
+        is_video = lambda s: (R.selected_media(s) or {}).get("kind") == "video" \
+            and (R.selected_media(s) or {}).get("file")
+        weights = [6 if is_video(s) else 1 for s in proj["slides"]]
+        total = sum(weights) + (1 if opts["pdf"] else 0) + (2 if opts["ai"] else 0)
+        done = 0.0
+
+        def advance(step, fraction=1.0):
+            st["progress"] = min(1.0, (done + step * fraction) / total)
+
         stills = []
-        for s in proj["slides"]:
+        for s, w in zip(proj["slides"], weights):
             st["log"].append(f"{R.slide_stem(s)}…")
-            still, written = R.export_slide(s, mdir, out, log=st["log"].append, formats=formats)
+            still, written = R.export_slide(s, mdir, out, log=st["log"].append, formats=formats,
+                                            progress=lambda f, w=w: advance(w, f))
             stills.append(still)
             st["files"] += written
+            done += w
+            advance(0)
         if opts["pdf"]:
             R.export_pdf(stills, out / "preview.pdf")
             st["files"].append("preview.pdf")
+            done += 1
+            advance(0)
         st["log"].append(f"Images / videos → {out}")
         if opts["ai"]:
             st["log"].append("Writing Illustrator files…")
             st["files"] += export_ai.export_ai(proj["slides"], mdir, root, name)
             st["log"].append(f"Illustrator files → {root}")
+            done += 2
+        st["progress"] = 1.0
         st["log"].append("Done")
     except Exception as e:
         traceback.print_exc()
@@ -522,7 +606,8 @@ def export(name):
     st = _exports.get(name)
     if st and st["running"]:
         return err("Export already running")
-    _exports[name] = {"running": True, "log": [], "files": [], "error": None, "started": time.time()}
+    _exports[name] = {"running": True, "log": [], "files": [], "error": None, "progress": 0.0,
+                      "started": time.time()}
     threading.Thread(target=_export, args=(name,), daemon=True).start()
     return jsonify(_exports[name])
 
@@ -597,6 +682,10 @@ if __name__ == "__main__":
             stream.reconfigure(errors="replace")
         except (AttributeError, ValueError):
             pass
+    if not take_over_port(PORT):
+        print(f"Port {PORT} is used by another program. Close it, or start with "
+              f"CAROUSEL_PORT=<other port>.", flush=True)
+        sys.exit(1)
     threading.Thread(target=_watch_downloads, daemon=True).start()
     if "--no-browser" not in sys.argv:
         threading.Timer(1.0, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()

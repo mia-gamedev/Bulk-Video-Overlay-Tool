@@ -124,4 +124,16 @@ button.icon { font-size: 17px; line-height: 1; padding: 5px 9px; }
 .path { font-size: 11px; word-break: break-all; background: var(--bg); padding: 6px; border-radius: 3px; }
 #presetThumb { width: 90px; border: 1px solid var(--border); }
 .thumb .num small { font-weight: normal; font-size: 10px; color: var(--accent); }
-#exportLog { background: var(--surface); border: 1px solid var(--border); padding: 8px; font-size: 11px; max-height: 160px; overflow: auto; white-space: pre-wrap; margin: 0; }
+#exportWrap { position: relative; }
+#logPop {
+  position: absolute; right: 0; top: calc(100% + 6px); width: 380px; z-index: 20; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--accent); border-radius: 4px;
+  display: flex; flex-direction: column; gap: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.6);
+}
+#logPop[hidden] { display: none; }
+#logBarWrap { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+#logBarWrap[hidden] { display: none; }
+#logBar { height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .4s ease; }
+#logBar.failed { background: var(--red); }
+#exportLog { background: var(--bg); padding: 8px; font-size: 11px; max-height: 320px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all; margin: 0; border-radius: 3px; }

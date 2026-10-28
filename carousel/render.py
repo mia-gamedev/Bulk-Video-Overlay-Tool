@@ -135,7 +135,8 @@ def draw_lines(draw, lines, align, ax, y0, font_key, size, tracking, leading):
         if runs is not None:
             runs.append({"element": getattr(_rec, "eid", None),
                          "text": line, "font": font_key, "size": size, "tracking": tracking,
-                         "align": align, "ax": ax, "x": x, "baseline": baseline})
+                         "align": align, "ax": ax, "x": x, "baseline": baseline,
+                         "leading": leading})
         draw_tracked(draw, line, x, baseline, font_key, size, tracking)
 
 
@@ -495,9 +496,10 @@ def save_still(still, out_dir, stem, formats):
     return written
 
 
-def export_slide(slide, media_dir, out_dir, log=print, formats=("png", "jpg")):
+def export_slide(slide, media_dir, out_dir, log=print, formats=("png", "jpg"), progress=None):
     """Image slides: slideNN.png / .jpg (as chosen in formats).
     Video slides: slideNN.mp4, plus the transparent text layer slideNN_text.png when PNG is on.
+    progress(fraction 0..1) is called while a video renders.
     Returns (still image for the preview PDF, written file names)."""
     import tempfile
     out_dir = Path(out_dir)
@@ -528,17 +530,35 @@ def export_slide(slide, media_dir, out_dir, log=print, formats=("png", "jpg")):
             mult_png = Path(tmp) / "shade_multiply.png"
             mult.save(mult_png)
         video = Path(media_dir) / m["file"]
-        iw, ih, _dur = probe_video(ffmpeg, video)
+        iw, ih, dur = probe_video(ffmpeg, video)
         sw, sh, x, y = crop_params(iw, ih, slide["crop"])
         out = out_dir / f"{stem}.mp4"
         cmd = overlay_cmd(ffmpeg, video, layer_png, out, sw, sh, x, y, multiply_png=mult_png)
         log(f"{stem}: rendering video…")
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", creationflags=NO_WINDOW)
-    if r.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed for {stem}:\n{r.stderr[-1500:]}")
+        code, err = _run_with_progress(cmd, dur, progress, Path(tmp) / "ffmpeg.log")
+    if code != 0:
+        raise RuntimeError(f"ffmpeg failed for {stem}:\n{err[-1500:]}")
     written.append(out.name)
     return still, written
+
+
+def _run_with_progress(cmd, duration, progress, err_file):
+    """Run ffmpeg, reporting its progress (out_time vs. duration) as 0..1.
+    stderr goes to a file so a full pipe can never block ffmpeg."""
+    cmd = [cmd[0], "-progress", "pipe:1", "-nostats", *cmd[1:]]
+    with open(err_file, "w+", encoding="utf-8", errors="replace") as err:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err, text=True,
+                                encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+        for line in proc.stdout:
+            key, _, value = line.strip().partition("=")
+            if progress and duration > 0 and key in ("out_time_us", "out_time_ms"):
+                try:
+                    progress(min(1.0, int(value) / 1e6 / duration))   # both are in µs
+                except ValueError:
+                    pass
+        code = proc.wait()
+        err.seek(0)
+        return code, err.read()
 
 
 def export_pdf(stills, out):
